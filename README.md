@@ -48,6 +48,7 @@ There are two ways to configure the environment with the Obsidian REST API Key.
   }
 }
 ```
+Sometimes Claude has issues detecting the location of uv / uvx. You can use `which uvx` to find and paste the full path in above config in such cases.
 
 2. Create a `.env` file in the working directory with the following required variable:
 
