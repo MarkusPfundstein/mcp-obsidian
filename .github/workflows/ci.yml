@@ -1,0 +1,30 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the Docker image
+        run: docker build . --file Dockerfile --tag ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push the Docker image
+        run: docker push ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
+
+      - uses: actions/delete-package-versions@v5
+        with:
+          package-name: "${{ github.event.repository.name }}"
+          package-type: "container"
+          delete-only-untagged-versions: "true"
