@@ -286,6 +286,46 @@ class PatchContentToolHandler(ToolHandler):
                text=f"Successfully patched content in {args['filepath']}"
            )
        ]
+       
+class PutContentToolHandler(ToolHandler):
+   def __init__(self):
+       super().__init__("obsidian_put_content")
+
+   def get_tool_description(self):
+       return Tool(
+           name=self.name,
+           description="Create a new file in your vault or update the content of an existing one in your vault.",
+           inputSchema={
+               "type": "object",
+               "properties": {
+                   "filepath": {
+                       "type": "string",
+                       "description": "Path to the relevant file (relative to your vault root)",
+                       "format": "path"
+                   },
+                   "content": {
+                       "type": "string",
+                       "description": "Content of the file you would like to upload"
+                   }
+               },
+               "required": ["filepath", "content"]
+           }
+       )
+
+   def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+       if "filepath" not in args or "content" not in args:
+           raise RuntimeError("filepath and content arguments required")
+
+       api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+       api.put_content(args.get("filepath", ""), args["content"])
+
+       return [
+           TextContent(
+               type="text",
+               text=f"Successfully uploaded content to {args['filepath']}"
+           )
+       ]
+   
 
 class DeleteFileToolHandler(ToolHandler):
    def __init__(self):

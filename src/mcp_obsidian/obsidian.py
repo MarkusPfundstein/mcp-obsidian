@@ -139,6 +139,22 @@ class Obsidian():
             return None
 
         return self._safe_call(call_fn)
+
+    def put_content(self, filepath: str, content: str) -> Any:
+        url = f"{self.get_base_url()}/vault/{filepath}"
+        
+        def call_fn():
+            response = requests.put(
+                url, 
+                headers=self._get_headers() | {'Content-Type': 'text/markdown'}, 
+                data=content,
+                verify=self.verify_ssl,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            return None
+
+        return self._safe_call(call_fn)
     
     def delete_file(self, filepath: str) -> Any:
         """Delete a file or directory from the vault.
