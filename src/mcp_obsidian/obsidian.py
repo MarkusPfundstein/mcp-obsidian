@@ -1,6 +1,7 @@
 import requests
 import urllib.parse
-from typing import Any
+from typing import Any, Tuple
+from urllib.parse import urlparse
 
 class Obsidian():
     def __init__(
@@ -17,6 +18,72 @@ class Obsidian():
         self.port = port
         self.verify_ssl = verify_ssl
         self.timeout = (3, 6)
+
+    @classmethod
+    def from_url(cls, api_key: str, url: str, verify_ssl: bool = False) -> 'Obsidian':
+        """Create Obsidian instance from a full URL.
+        
+        Args:
+            api_key: The API key for authentication
+            url: Full URL like 'http://127.0.0.1:27123' or 'https://localhost:27124'
+            verify_ssl: Whether to verify SSL certificates
+            
+        Returns:
+            Obsidian instance with parsed URL components
+            
+        Raises:
+            ValueError: If URL is malformed or missing required components
+        """
+        try:
+            parsed = urlparse(url)
+            
+            if not parsed.scheme:
+                raise ValueError(f"URL must include protocol (http/https): {url}")
+            
+            if not parsed.hostname:
+                raise ValueError(f"URL must include hostname: {url}")
+            
+            protocol = parsed.scheme
+            host = parsed.hostname
+            port = parsed.port
+            
+            # Set default ports based on protocol if not specified
+            if port is None:
+                port = 27124 if protocol == 'https' else 27123
+            
+            return cls(
+                api_key=api_key,
+                protocol=protocol,
+                host=host,
+                port=port,
+                verify_ssl=verify_ssl
+            )
+        except Exception as e:
+            raise ValueError(f"Failed to parse OBSIDIAN_HOST URL '{url}': {str(e)}")
+
+    @staticmethod
+    def parse_host_config(host_config: str) -> Tuple[str, str, int]:
+        """Parse host configuration string.
+        
+        Args:
+            host_config: Either a full URL (http://host:port) or just hostname/IP
+            
+        Returns:
+            Tuple of (protocol, host, port)
+        """
+        if '://' in host_config:
+            # Full URL format
+            parsed = urlparse(host_config)
+            protocol = parsed.scheme or 'https'
+            host = parsed.hostname or '127.0.0.1'
+            port = parsed.port or (27124 if protocol == 'https' else 27123)
+        else:
+            # Legacy hostname/IP only format
+            protocol = 'https'
+            host = host_config
+            port = 27124
+            
+        return protocol, host, port
 
     def get_base_url(self) -> str:
         return f'{self.protocol}://{self.host}:{self.port}'

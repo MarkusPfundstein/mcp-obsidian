@@ -29,11 +29,31 @@ The use prompts like this:
 
 ## Configuration
 
-### Obsidian REST API Key
+### Environment Variables
 
-There are two ways to configure the environment with the Obsidian REST API Key. 
+The MCP server requires the following environment variables:
 
-1. Add to server config (preferred)
+- `OBSIDIAN_API_KEY`: Your Obsidian Local REST API key (required)
+- `OBSIDIAN_HOST`: The URL for your Obsidian Local REST API (optional, defaults to `https://127.0.0.1:27124`)
+
+#### OBSIDIAN_HOST Format
+
+The `OBSIDIAN_HOST` variable accepts full URLs with protocol, host, and port. It supports both `localhost` and `127.0.0.1` with either `http` or `https`:
+
+```
+http://127.0.0.1:27123
+https://localhost:27124
+http://localhost:27123
+https://127.0.0.1:27124
+```
+
+**Note:** The server performs a health check on startup. If the connection fails, you'll get an immediate error message indicating the configuration issue.
+
+### Configuration Methods
+
+There are two ways to configure the environment variables:
+
+#### 1. Add to server config (preferred)
 
 ```json
 {
@@ -50,14 +70,14 @@ There are two ways to configure the environment with the Obsidian REST API Key.
 }
 ```
 
-2. Create a `.env` file in the working directory with the following required variable:
+#### 2. Create a `.env` file in the working directory with the following required variable:
 
 ```
 OBSIDIAN_API_KEY=your_api_key_here
 OBSIDIAN_HOST=your_obsidian_host
 ```
 
-Note: You can find the key in the Obsidian plugin config.
+**Note:** You can find the API key in the Obsidian Local REST API plugin configuration.
 
 ## Quickstart
 
@@ -107,7 +127,8 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
         "mcp-obsidian"
       ],
       "env": {
-        "OBSIDIAN_API_KEY" : "<YOUR_OBSIDIAN_API_KEY>"
+        "OBSIDIAN_API_KEY": "<your_api_key_here>",
+        "OBSIDIAN_HOST": "<your_obsidian_host>"
       }
     }
   }
