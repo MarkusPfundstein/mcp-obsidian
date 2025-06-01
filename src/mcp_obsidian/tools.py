@@ -271,21 +271,54 @@ class PatchContentToolHandler(ToolHandler):
        if not all(k in args for k in ["filepath", "operation", "target_type", "target", "content"]):
            raise RuntimeError("filepath, operation, target_type, target and content arguments required")
 
-       api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
-       api.patch_content(
-           args.get("filepath", ""),
-           args.get("operation", ""),
-           args.get("target_type", ""),
-           args.get("target", ""),
-           args.get("content", "")
-       )
-
-       return [
-           TextContent(
-               type="text",
-               text=f"Successfully patched content in {args['filepath']}"
+       try:
+           api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+           api.patch_content(
+               args.get("filepath", ""),
+               args.get("operation", ""),
+               args.get("target_type", ""),
+               args.get("target", ""),
+               args.get("content", "")
            )
-       ]
+
+           return [
+               TextContent(
+                   type="text",
+                   text=f"Successfully patched content in {args['filepath']}"
+               )
+           ]
+       except Exception as e:
+           error_msg = str(e)
+           target_type = args.get("target_type", "")
+           target = args.get("target", "")
+           
+           # Provide specific guidance based on error type
+           if "40080" in error_msg or "invalid-target" in error_msg.lower():
+               guidance_msg = self._get_target_guidance(target_type, target)
+               return [
+                   TextContent(
+                       type="text",
+                       text=f"Failed to patch content in {args['filepath']}: Target '{target}' not found.\n\n"
+                            f"{guidance_msg}\n\nError: {error_msg}"
+                   )
+               ]
+           else:
+               # Re-raise other errors
+               raise e
+   
+   def _get_target_guidance(self, target_type: str, target: str) -> str:
+       """Provide specific guidance based on target type."""
+       if target_type == "heading":
+           return ("For headings, use the exact heading text including the hash symbols (e.g., '## My Heading').\n"
+                  "Make sure the heading exists in the file and matches exactly, including spacing and capitalization.")
+       elif target_type == "block":
+           return ("For blocks, use the block reference ID (e.g., '^block-id').\n"
+                  "Make sure the block reference exists in the file.")
+       elif target_type == "frontmatter":
+           return ("For frontmatter, use the exact field name (e.g., 'tags' or 'title').\n"
+                  "Make sure the frontmatter field exists in the file.")
+       else:
+           return "Make sure the target exists exactly as specified in the file."
 
 class DeleteFileToolHandler(ToolHandler):
    def __init__(self):

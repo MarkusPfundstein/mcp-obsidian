@@ -130,7 +130,7 @@ class Obsidian():
             'Content-Type': 'text/markdown',
             'Operation': operation,
             'Target-Type': target_type,
-            'Target': urllib.parse.quote(target)
+            'Target': target
         }
         
         def call_fn():
