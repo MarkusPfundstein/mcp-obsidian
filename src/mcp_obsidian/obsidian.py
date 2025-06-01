@@ -127,34 +127,25 @@ class Obsidian():
         url = f"{self.get_base_url()}/vault/{filepath}"
         
         def call_fn():
-            # First try with URL-encoded target (fixes Unicode issues)
+            # Check if target contains non-ASCII characters that need URL encoding
             try:
-                encoded_target = urllib.parse.quote(target, safe='')
-                headers = self._get_headers() | {
-                    'Content-Type': 'text/markdown',
-                    'Operation': operation,
-                    'Target-Type': target_type,
-                    'Target': encoded_target
-                }
-                response = requests.patch(url, headers=headers, data=content.encode('utf-8'), verify=self.verify_ssl, timeout=self.timeout)
-                response.raise_for_status()
-                return None
-            except Exception as e:
-                # If encoded version fails, try original target as fallback
-                # This ensures compatibility with different REST API versions
-                try:
-                    headers = self._get_headers() | {
-                        'Content-Type': 'text/markdown',
-                        'Operation': operation,
-                        'Target-Type': target_type,
-                        'Target': target
-                    }
-                    response = requests.patch(url, headers=headers, data=content.encode('utf-8'), verify=self.verify_ssl, timeout=self.timeout)
-                    response.raise_for_status()
-                    return None
-                except Exception:
-                    # Re-raise the original exception if both attempts fail
-                    raise e
+                target.encode('ascii')
+                # Target is pure ASCII, use as-is
+                final_target = target
+            except UnicodeEncodeError:
+                # Target contains non-ASCII characters, URL encode it
+                final_target = urllib.parse.quote(target, safe='')
+            
+            headers = self._get_headers() | {
+                'Content-Type': 'text/markdown',
+                'Operation': operation,
+                'Target-Type': target_type,
+                'Target': final_target
+            }
+            
+            response = requests.patch(url, headers=headers, data=content.encode('utf-8'), verify=self.verify_ssl, timeout=self.timeout)
+            response.raise_for_status()
+            return None
 
         return self._safe_call(call_fn)
     

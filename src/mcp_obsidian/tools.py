@@ -293,13 +293,18 @@ class PatchContentToolHandler(ToolHandler):
            target = args.get("target", "")
            
            # Provide specific guidance based on error type
-           if "40080" in error_msg or "invalid-target" in error_msg.lower():
+           if "40080" in error_msg or "invalid-target" in error_msg.lower() or "target" in error_msg.lower():
                guidance_msg = self._get_target_guidance(target_type, target)
                return [
                    TextContent(
                        type="text",
                        text=f"Failed to patch content in {args['filepath']}: Target '{target}' not found.\n\n"
-                            f"{guidance_msg}\n\nError: {error_msg}"
+                            f"{guidance_msg}\n\n"
+                            f"💡 Common issues:\n"
+                            f"   - Heading doesn't exist or has different spacing/capitalization\n"
+                            f"   - Block reference doesn't exist (check for ^block-id in the file)\n"
+                            f"   - Frontmatter field doesn't exist in the --- section\n\n"
+                            f"Error: {error_msg}"
                    )
                ]
            elif "latin-1" in error_msg.lower() or "unicodeencodeerror" in error_msg.lower():
@@ -319,14 +324,15 @@ class PatchContentToolHandler(ToolHandler):
        """Provide specific guidance based on target type."""
        if target_type == "heading":
            return ("For headings, use the exact heading text including the hash symbols (e.g., '## My Heading').\n"
+                  "For nested headings, use the delimiter '::' (e.g., 'Heading 1::Subheading 1:1').\n"
                   "Make sure the heading exists in the file and matches exactly, including spacing and capitalization.\n"
-                  "Note: Emoji and Unicode characters in headings are now supported with improved encoding.")
+                  "Note: Only non-ASCII characters (like emojis) are automatically URL-encoded.")
        elif target_type == "block":
-           return ("For blocks, use the block reference ID (e.g., '^block-id').\n"
-                  "Make sure the block reference exists in the file.")
+           return ("For blocks, use the block reference ID without the ^ symbol (e.g., 'block-id' not '^block-id').\n"
+                  "Make sure the block reference exists in the file. Block references appear at the end of a paragraph as ^block-id.")
        elif target_type == "frontmatter":
            return ("For frontmatter, use the exact field name (e.g., 'tags' or 'title').\n"
-                  "Make sure the frontmatter field exists in the file.")
+                  "The field must exist in the frontmatter section at the top of the file between --- lines.")
        else:
            return "Make sure the target exists exactly as specified in the file."
 
