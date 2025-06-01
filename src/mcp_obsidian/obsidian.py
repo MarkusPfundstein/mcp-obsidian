@@ -127,14 +127,29 @@ class Obsidian():
         url = f"{self.get_base_url()}/vault/{filepath}"
         
         def call_fn():
+            # Resolve target based on type and format
+            resolved_target = target
+            
+            # For headings, we need to resolve the full path if only partial heading is provided
+            if target_type == "heading" and "::" not in target:
+                # If target looks like a heading (starts with #), we need to resolve full path
+                if target.startswith("#"):
+                    # Get file content to build full heading path
+                    try:
+                        file_content = self.get_file_contents(filepath)
+                        resolved_target = self._resolve_full_heading_path(file_content, target)
+                    except Exception:
+                        # If we can't resolve, try the original target
+                        resolved_target = target
+            
             # Check if target contains non-ASCII characters that need URL encoding
             try:
-                target.encode('ascii')
+                resolved_target.encode('ascii')
                 # Target is pure ASCII, use as-is
-                final_target = target
+                final_target = resolved_target
             except UnicodeEncodeError:
                 # Target contains non-ASCII characters, URL encode it
-                final_target = urllib.parse.quote(target, safe='')
+                final_target = urllib.parse.quote(resolved_target, safe='')
             
             headers = self._get_headers() | {
                 'Content-Type': 'text/markdown',
@@ -149,6 +164,38 @@ class Obsidian():
 
         return self._safe_call(call_fn)
     
+    def _resolve_full_heading_path(self, content: str, target_heading: str) -> str:
+        """
+        Resolve a partial heading to its full path as required by API v3.0+
+        
+        API v3.0+ requires full heading paths like: "Level1::Level2::Level3"
+        """
+        lines = content.split('\n')
+        heading_stack = []
+        target_level = target_heading.count('#')
+        target_text = target_heading.lstrip('#').strip()
+        
+        for line in lines:
+            line = line.strip()
+            if line.startswith('#'):
+                level = 0
+                while level < len(line) and line[level] == '#':
+                    level += 1
+                
+                heading_text = line[level:].strip()
+                
+                # Maintain heading stack for current context
+                heading_stack = heading_stack[:level-1]  # Remove deeper levels
+                heading_stack.append(heading_text)
+                
+                # Check if this is our target heading
+                if level == target_level and heading_text == target_text:
+                    # Return full path
+                    return "::".join(heading_stack)
+        
+        # If not found, return original target
+        return target_heading
+
     def delete_file(self, filepath: str) -> Any:
         """Delete a file or directory from the vault.
         
