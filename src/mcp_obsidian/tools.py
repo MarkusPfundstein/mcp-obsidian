@@ -302,6 +302,15 @@ class PatchContentToolHandler(ToolHandler):
                             f"{guidance_msg}\n\nError: {error_msg}"
                    )
                ]
+           elif "latin-1" in error_msg.lower() or "unicodeencodeerror" in error_msg.lower():
+               return [
+                   TextContent(
+                       type="text",
+                       text=f"Unicode encoding error in {args['filepath']}: Target '{target}' contains characters that cannot be encoded.\n\n"
+                            f"This issue has been fixed in the latest version. Please ensure you're using the updated MCP server.\n\n"
+                            f"Error: {error_msg}"
+                   )
+               ]
            else:
                # Re-raise other errors
                raise e
@@ -310,7 +319,8 @@ class PatchContentToolHandler(ToolHandler):
        """Provide specific guidance based on target type."""
        if target_type == "heading":
            return ("For headings, use the exact heading text including the hash symbols (e.g., '## My Heading').\n"
-                  "Make sure the heading exists in the file and matches exactly, including spacing and capitalization.")
+                  "Make sure the heading exists in the file and matches exactly, including spacing and capitalization.\n"
+                  "Note: Emoji and Unicode characters in headings are now supported with improved encoding.")
        elif target_type == "block":
            return ("For blocks, use the block reference ID (e.g., '^block-id').\n"
                   "Make sure the block reference exists in the file.")
