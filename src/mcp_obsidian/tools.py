@@ -7,7 +7,7 @@ from mcp.types import (
 )
 import json
 import os
-from . import obsidian
+from . import obsidian, server
 
 api_key = os.getenv("OBSIDIAN_API_KEY", "")
 obsidian_host = os.getenv("OBSIDIAN_HOST", "127.0.0.1")
@@ -355,11 +355,25 @@ class ComplexSearchToolHandler(ToolHandler):
        )
 
    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
-       if "query" not in args:
+       query_param = args.get("query")
+
+       if query_param is None:
            raise RuntimeError("query argument missing in arguments")
 
+       actual_query_dict: dict
+       if isinstance(query_param, str):
+           try:
+               actual_query_dict = json.loads(query_param)
+           except json.JSONDecodeError as e:
+               raise RuntimeError(f"query parameter is a string but not valid JSON: {query_param}")
+       elif isinstance(query_param, dict):
+           actual_query_dict = query_param
+       else:
+           server.logger.warning(f"query parameter has unexpected type: {type(query_param)}. Query: {query_param}")
+           raise RuntimeError(f"query argument has unexpected type: {type(query_param)}. Expected dict or JSON string.")
+
        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
-       results = api.search_json(args.get("query", ""))
+       results = api.search_json(actual_query_dict)
 
        return [
            TextContent(
@@ -367,6 +381,42 @@ class ComplexSearchToolHandler(ToolHandler):
                text=json.dumps(results, indent=2)
            )
        ]
+
+class DataviewQueryToolHandler(ToolHandler):
+    def __init__(self):
+        super().__init__("obsidian_dataview_query") # New function
+
+    def get_tool_description(self):
+        return Tool(
+            name=self.name,
+            description="Executes a Dataview query against Obsidian notes and returns the results as JSON.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The Dataview query string (e.g., TABLE title, status FROM \"some/path\" WHERE condition)."
+                    }
+                },
+                "required": ["query"]
+            }
+        )
+
+    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+        dataview_query_string = args.get("query")
+
+        if not dataview_query_string or not isinstance(dataview_query_string, str):
+            raise RuntimeError("query argument (string) missing or invalid in arguments for Dataview")
+
+        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        results = api.dataview_query_execute(dataview_query_string) 
+
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(results, indent=2)
+            )
+        ]
 
 class BatchGetFileContentsToolHandler(ToolHandler):
     def __init__(self):

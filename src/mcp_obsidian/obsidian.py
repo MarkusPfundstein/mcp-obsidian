@@ -171,7 +171,23 @@ class Obsidian():
             return response.json()
 
         return self._safe_call(call_fn)
-    
+
+    def dataview_query_execute(self, dv_query: str) -> Any:
+        url = f"{self.get_base_url()}/search/"
+        
+        headers = self._get_headers() | {
+            # Content-Type for Dataview DQL
+            'Content-Type': 'application/vnd.olrapi.dataview.dql+txt' 
+        }
+        
+        def call_fn():
+            response = requests.post(url, headers=headers, data=dv_query.encode('utf-8'), 
+                                     verify=self.verify_ssl, timeout=self.timeout)
+            response.raise_for_status()
+            return response.json()
+
+        return self._safe_call(call_fn)
+
     def get_periodic_note(self, period: str) -> Any:
         """Get current periodic note for the specified period.
         
