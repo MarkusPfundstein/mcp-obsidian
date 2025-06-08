@@ -14,6 +14,7 @@ The server implements multiple tools to interact with Obsidian:
 - list_files_in_dir: Lists all files and directories in a specific Obsidian directory
 - get_file_contents: Return the content of a single file in your vault.
 - search: Search for documents matching a specified text query across all files in the vault
+- obsidian_dataview_query: runs a TABLE dataview query in obsidian
 - patch_content: Insert content into an existing note relative to a heading, block reference, or frontmatter field.
 - append_content: Append content to a new or existing file in the vault.
 - delete_file: Delete a file or directory from your vault.
