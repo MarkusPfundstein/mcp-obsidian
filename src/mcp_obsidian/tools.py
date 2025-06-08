@@ -395,7 +395,7 @@ class DataviewQueryToolHandler(ToolHandler):
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The Dataview query string (e.g., TABLE title, status FROM \"some/path\" WHERE condition)."
+                        "description": "The Dataview query string (e.g., TABLE title, status FROM \"some/path\" WHERE condition). Note: It does not support TABLE WITHOUT ID queries."
                     }
                 },
                 "required": ["query"]
