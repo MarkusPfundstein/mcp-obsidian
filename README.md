@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/markuspfundstein-mcp-obsidian-badge.png)](https://mseep.ai/app/markuspfundstein-mcp-obsidian)
+
 # MCP server for Obsidian
 
 MCP server to interact with Obsidian via the Local REST API community plugin.
