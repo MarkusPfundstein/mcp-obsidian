@@ -1,7 +1,13 @@
+import os
+from dotenv import load_dotenv
 import requests
 import urllib.parse
 import os
 from typing import Any
+
+load_dotenv()
+
+base_url = os.getenv("BASE_URL", "")
 
 class Obsidian():
     def __init__(
@@ -25,7 +31,10 @@ class Obsidian():
         self.timeout = (3, 6)
 
     def get_base_url(self) -> str:
-        return f'{self.protocol}://{self.host}:{self.port}'
+        if base_url != "":
+            return base_url
+        else:
+            return f'{self.protocol}://{self.host}:{self.port}'
     
     def _get_headers(self) -> dict:
         headers = {
