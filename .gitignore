@@ -10,7 +10,9 @@ wheels/
 .venv
 .env
 
-# Temporary investigation/debug documentation
-FIX_SUMMARY.md
-PATCH_FIX_DOCUMENTATION.md
-UNICODE_FIX_SUMMARY.md
+# Debug files
+debug_*.py
+*_debug.py
+test_file_for_debugging.*
+comprehensive_*.py
+final_validation.py
