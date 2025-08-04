@@ -3,6 +3,7 @@
 MCP server to interact with Obsidian via the Local REST API community plugin.
 
 <a href="https://glama.ai/mcp/servers/3wko1bhuek"><img width="380" height="200" src="https://glama.ai/mcp/servers/3wko1bhuek/badge" alt="server for Obsidian MCP server" /></a>
+[![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/MarkusPfundstein/mcp-obsidian)](https://archestra.ai/mcp-catalog/markuspfundstein__mcp-obsidian)
 
 ## Components
 
