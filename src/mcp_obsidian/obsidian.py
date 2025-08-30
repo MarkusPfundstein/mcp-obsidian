@@ -1,5 +1,7 @@
 import requests
 import urllib.parse
+from urllib.parse import quote, unquote
+import unicodedata
 import os
 from typing import Any
 
@@ -44,6 +46,59 @@ class Obsidian():
         except requests.exceptions.RequestException as e:
             raise Exception(f"Request failed: {str(e)}")
 
+    def _encode_path(self, path: str) -> str:
+        """Encode path segments while preserving directory separators and trailing slashes.
+        
+        Features:
+        - Idempotent: Prevents double-encoding of already encoded paths
+        - Unicode normalization: Converts NFD to NFC for consistency  
+        - RFC 3986 compliant: Preserves safe characters (-_.~)
+        - Preserves directory structure: "/" separators and trailing "/" maintained
+        
+        Args:
+            path: File or directory path (relative to vault root)
+            
+        Returns:
+            URL-encoded path with preserved "/" separators and trailing slash
+            
+        Examples:
+            "simple.md" → "simple.md"
+            "Reports/2024/" → "Reports/2024/" (trailing slash preserved)
+            "Área/çãõ/test.md" → "%C3%81rea/%C3%A7%C3%A3%C3%B5/test.md"
+            "already%20encoded/" → "already%20encoded/" (idempotent)
+            "emoji/📘 notes.md" → "emoji/%F0%9F%93%98%20notes.md"
+        """
+        if not path:
+            return ""
+        
+        # Record if path had trailing slash before processing
+        had_trailing_slash = path.endswith('/')
+        
+        # Split path into segments, removing empty segments  
+        segments = [seg for seg in path.strip("/").split("/") if seg]
+        
+        # RFC 3986 unreserved characters that don't need encoding
+        safe_chars = "-_.~"
+        
+        encoded_segments = []
+        for segment in segments:
+            # Prevent double-encoding by decoding first
+            segment = unquote(segment)
+            
+            # Normalize Unicode (NFD → NFC) for consistency across platforms
+            segment = unicodedata.normalize("NFC", segment)
+            
+            # Encode segment while preserving safe characters
+            encoded_segment = quote(segment, safe=safe_chars)
+            encoded_segments.append(encoded_segment)
+        
+        # Join segments and restore trailing slash if originally present
+        encoded_path = "/".join(encoded_segments)
+        if had_trailing_slash and encoded_segments:
+            encoded_path += "/"
+        
+        return encoded_path
+
     def list_files_in_vault(self) -> Any:
         url = f"{self.get_base_url()}/vault/"
         
@@ -57,7 +112,11 @@ class Obsidian():
 
         
     def list_files_in_dir(self, dirpath: str) -> Any:
-        url = f"{self.get_base_url()}/vault/{dirpath}/"
+        encoded_path = self._encode_path(dirpath)
+        # Ensure exactly one trailing slash for directory endpoint
+        if not encoded_path.endswith('/'):
+            encoded_path += '/'
+        url = f"{self.get_base_url()}/vault/{encoded_path}"
         
         def call_fn():
             response = requests.get(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
@@ -68,7 +127,8 @@ class Obsidian():
         return self._safe_call(call_fn)
 
     def get_file_contents(self, filepath: str) -> Any:
-        url = f"{self.get_base_url()}/vault/{filepath}"
+        encoded_path = self._encode_path(filepath)
+        url = f"{self.get_base_url()}/vault/{encoded_path}"
     
         def call_fn():
             response = requests.get(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
@@ -114,7 +174,8 @@ class Obsidian():
         return self._safe_call(call_fn)
     
     def append_content(self, filepath: str, content: str) -> Any:
-        url = f"{self.get_base_url()}/vault/{filepath}"
+        encoded_path = self._encode_path(filepath)
+        url = f"{self.get_base_url()}/vault/{encoded_path}"
         
         def call_fn():
             response = requests.post(
@@ -130,7 +191,8 @@ class Obsidian():
         return self._safe_call(call_fn)
     
     def patch_content(self, filepath: str, operation: str, target_type: str, target: str, content: str) -> Any:
-        url = f"{self.get_base_url()}/vault/{filepath}"
+        encoded_path = self._encode_path(filepath)
+        url = f"{self.get_base_url()}/vault/{encoded_path}"
         
         headers = self._get_headers() | {
             'Content-Type': 'text/markdown',
@@ -147,7 +209,8 @@ class Obsidian():
         return self._safe_call(call_fn)
 
     def put_content(self, filepath: str, content: str) -> Any:
-        url = f"{self.get_base_url()}/vault/{filepath}"
+        encoded_path = self._encode_path(filepath)
+        url = f"{self.get_base_url()}/vault/{encoded_path}"
         
         def call_fn():
             response = requests.put(
@@ -171,7 +234,8 @@ class Obsidian():
         Returns:
             None on success
         """
-        url = f"{self.get_base_url()}/vault/{filepath}"
+        encoded_path = self._encode_path(filepath)
+        url = f"{self.get_base_url()}/vault/{encoded_path}"
         
         def call_fn():
             response = requests.delete(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
@@ -194,27 +258,27 @@ class Obsidian():
 
         return self._safe_call(call_fn)
     
-    def get_periodic_note(self, period: str, type: str = "content") -> Any:
+    def get_periodic_note(self, period: str, as_json: bool = False) -> Any:
         """Get current periodic note for the specified period.
         
         Args:
             period: The period type (daily, weekly, monthly, quarterly, yearly)
-            type: Type of the data to get ('content' or 'metadata'). 
-                'content' returns just the content in Markdown format. 
-                'metadata' includes note metadata (including paths, tags, etc.) and the content.. 
+            as_json: Whether to return JSON format with metadata (default: False)
             
         Returns:
-            Content of the periodic note
+            Content of the periodic note (text or JSON)
         """
         url = f"{self.get_base_url()}/periodic/{period}/"
         
         def call_fn():
             headers = self._get_headers()
-            if type == "metadata":
+            if as_json:
                 headers['Accept'] = 'application/vnd.olrapi.note+json'
             response = requests.get(url, headers=headers, verify=self.verify_ssl, timeout=self.timeout)
             response.raise_for_status()
             
+            if as_json:
+                return response.json()
             return response.text
 
         return self._safe_call(call_fn)
@@ -288,4 +352,274 @@ class Obsidian():
             response.raise_for_status()
             return response.json()
 
+        return self._safe_call(call_fn)
+    
+    def get_active_note(self, as_json: bool = False) -> Any:
+        """Get content of the currently active note in Obsidian.
+        
+        Args:
+            as_json: Whether to return JSON format with metadata (default: False)
+            
+        Returns:
+            Content of the active note (text or JSON)
+        """
+        url = f"{self.get_base_url()}/active/"
+        
+        def call_fn():
+            headers = self._get_headers()
+            if as_json:
+                headers['Accept'] = 'application/vnd.olrapi.note+json'
+            response = requests.get(url, headers=headers, verify=self.verify_ssl, timeout=self.timeout)
+            response.raise_for_status()
+            
+            if as_json:
+                return response.json()
+            return response.text
+
+        return self._safe_call(call_fn)
+    
+    def append_to_active(self, content: str) -> Any:
+        """Append content to the currently active note.
+        
+        Args:
+            content: Content to append to the active note
+            
+        Returns:
+            None on success
+        """
+        url = f"{self.get_base_url()}/active/"
+        
+        def call_fn():
+            response = requests.post(
+                url,
+                headers=self._get_headers() | {'Content-Type': 'text/markdown'},
+                data=content,
+                verify=self.verify_ssl,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            return None
+
+        return self._safe_call(call_fn)
+    
+    def replace_active_note(self, content: str) -> Any:
+        """Replace entire content of the currently active note.
+        
+        Args:
+            content: New content for the active note
+            
+        Returns:
+            None on success
+        """
+        url = f"{self.get_base_url()}/active/"
+        
+        def call_fn():
+            response = requests.put(
+                url,
+                headers=self._get_headers() | {'Content-Type': 'text/markdown'},
+                data=content,
+                verify=self.verify_ssl,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            return None
+
+        return self._safe_call(call_fn)
+    
+    def patch_active_note(self, operation: str, target_type: str, target: str, content: str) -> Any:
+        """Insert/replace content in active note relative to a target.
+        
+        Args:
+            operation: Operation to perform (append, prepend, or replace)
+            target_type: Type of target (heading, block, or frontmatter)
+            target: Target identifier
+            content: Content to insert
+            
+        Returns:
+            None on success
+        """
+        url = f"{self.get_base_url()}/active/"
+        
+        headers = self._get_headers() | {
+            'Content-Type': 'text/markdown',
+            'Operation': operation,
+            'Target-Type': target_type,
+            'Target': urllib.parse.quote(target)
+        }
+        
+        def call_fn():
+            response = requests.patch(url, headers=headers, data=content, verify=self.verify_ssl, timeout=self.timeout)
+            response.raise_for_status()
+            return None
+
+        return self._safe_call(call_fn)
+    
+    def delete_active_note(self) -> Any:
+        """Delete the currently active note.
+        
+        Returns:
+            None on success
+        """
+        url = f"{self.get_base_url()}/active/"
+        
+        def call_fn():
+            response = requests.delete(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
+            response.raise_for_status()
+            return None
+
+        return self._safe_call(call_fn)
+    
+    def append_to_periodic(self, period: str, content: str) -> Any:
+        """Append content to the current periodic note.
+        
+        Args:
+            period: The period type (daily, weekly, monthly, quarterly, yearly)
+            content: Content to append to the periodic note
+            
+        Returns:
+            None on success
+        """
+        url = f"{self.get_base_url()}/periodic/{period}/"
+        
+        def call_fn():
+            response = requests.post(
+                url,
+                headers=self._get_headers() | {'Content-Type': 'text/markdown'},
+                data=content,
+                verify=self.verify_ssl,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            return None
+
+        return self._safe_call(call_fn)
+    
+    def replace_periodic_note(self, period: str, content: str) -> Any:
+        """Replace entire content of the current periodic note.
+        
+        Args:
+            period: The period type (daily, weekly, monthly, quarterly, yearly)
+            content: New content for the periodic note
+            
+        Returns:
+            None on success
+        """
+        url = f"{self.get_base_url()}/periodic/{period}/"
+        
+        def call_fn():
+            response = requests.put(
+                url,
+                headers=self._get_headers() | {'Content-Type': 'text/markdown'},
+                data=content,
+                verify=self.verify_ssl,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            return None
+
+        return self._safe_call(call_fn)
+    
+    def patch_periodic_note(self, period: str, operation: str, target_type: str, target: str, content: str) -> Any:
+        """Insert/replace content in periodic note relative to a target.
+        
+        Args:
+            period: The period type (daily, weekly, monthly, quarterly, yearly)
+            operation: Operation to perform (append, prepend, or replace)
+            target_type: Type of target (heading, block, or frontmatter)
+            target: Target identifier
+            content: Content to insert
+            
+        Returns:
+            None on success
+        """
+        url = f"{self.get_base_url()}/periodic/{period}/"
+        
+        headers = self._get_headers() | {
+            'Content-Type': 'text/markdown',
+            'Operation': operation,
+            'Target-Type': target_type,
+            'Target': urllib.parse.quote(target)
+        }
+        
+        def call_fn():
+            response = requests.patch(url, headers=headers, data=content, verify=self.verify_ssl, timeout=self.timeout)
+            response.raise_for_status()
+            return None
+
+        return self._safe_call(call_fn)
+    
+    def delete_periodic_note(self, period: str) -> Any:
+        """Delete the current periodic note.
+        
+        Args:
+            period: The period type (daily, weekly, monthly, quarterly, yearly)
+            
+        Returns:
+            None on success
+        """
+        url = f"{self.get_base_url()}/periodic/{period}/"
+        
+        def call_fn():
+            response = requests.delete(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
+            response.raise_for_status()
+            return None
+
+        return self._safe_call(call_fn)
+    
+    def list_commands(self) -> Any:
+        """List all available Obsidian commands from the command palette.
+        
+        Returns:
+            List of available commands with their IDs and names
+        """
+        url = f"{self.get_base_url()}/commands/"
+        
+        def call_fn():
+            response = requests.get(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
+            response.raise_for_status()
+            return response.json()
+            
+        return self._safe_call(call_fn)
+    
+    def execute_command(self, command_id: str) -> Any:
+        """Execute a specific Obsidian command by its ID.
+        
+        Args:
+            command_id: The ID of the command to execute
+            
+        Returns:
+            None on success
+            
+        Warning:
+            Some commands may be destructive or change Obsidian settings.
+            Use with caution and verify command IDs with list_commands().
+        """
+        url = f"{self.get_base_url()}/commands/{urllib.parse.quote(command_id)}/"
+        
+        def call_fn():
+            response = requests.post(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
+            response.raise_for_status()
+            return None
+            
+        return self._safe_call(call_fn)
+    
+    def open_file(self, filename: str, new_leaf: bool = False) -> Any:
+        """Open a file in Obsidian UI.
+        
+        Args:
+            filename: Path to the file to open (relative to vault root)
+            new_leaf: If True, opens in new tab/pane; if False, opens in current view
+            
+        Returns:
+            None on success
+        """
+        encoded_filename = self._encode_path(filename)
+        url = f"{self.get_base_url()}/open/{encoded_filename}"
+        params = {"newLeaf": str(new_leaf).lower()}
+        
+        def call_fn():
+            response = requests.post(url, headers=self._get_headers(), params=params, verify=self.verify_ssl, timeout=self.timeout)
+            response.raise_for_status()
+            return None
+            
         return self._safe_call(call_fn)

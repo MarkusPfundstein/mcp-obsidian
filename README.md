@@ -1,6 +1,6 @@
 # MCP server for Obsidian
 
-MCP server to interact with Obsidian via the Local REST API community plugin.
+MCP server providing 25 tools to interact with Obsidian via the Local REST API community plugin, including active note operations, periodic notes management, and command execution.
 
 <a href="https://glama.ai/mcp/servers/3wko1bhuek"><img width="380" height="200" src="https://glama.ai/mcp/servers/3wko1bhuek/badge" alt="server for Obsidian MCP server" /></a>
 
@@ -8,24 +8,103 @@ MCP server to interact with Obsidian via the Local REST API community plugin.
 
 ### Tools
 
-The server implements multiple tools to interact with Obsidian:
+The server implements 25 tools to interact with Obsidian, organized by functionality:
 
-- list_files_in_vault: Lists all files and directories in the root directory of your Obsidian vault
-- list_files_in_dir: Lists all files and directories in a specific Obsidian directory
-- get_file_contents: Return the content of a single file in your vault.
-- search: Search for documents matching a specified text query across all files in the vault
-- patch_content: Insert content into an existing note relative to a heading, block reference, or frontmatter field.
-- append_content: Append content to a new or existing file in the vault.
-- delete_file: Delete a file or directory from your vault.
+#### File & Content Operations
+- obsidian_list_files_in_vault: Lists all files and directories in the root directory of your Obsidian vault
+- obsidian_list_files_in_dir: Lists all files and directories in a specific Obsidian directory
+- obsidian_get_file_contents: Return the content of a single file in your vault
+- obsidian_batch_get_file_contents: Return the contents of multiple files in your vault, concatenated with headers
+- obsidian_simple_search: Search for documents matching a specified text query across all files in the vault
+- obsidian_complex_search: Complex search for documents using JsonLogic queries with glob and regexp support
+- obsidian_patch_content: Insert content into an existing note relative to a heading, block reference, or frontmatter field
+- obsidian_append_content: Append content to a new or existing file in the vault
+- obsidian_put_content: Create a new file or update the content of an existing file in your vault
+- obsidian_delete_file: Delete a file or directory from your vault
+
+#### Active Note Operations
+- obsidian_get_active: Get content of the currently active note in Obsidian
+- obsidian_post_active: Append content to the currently active note
+- obsidian_put_active: Replace entire content of the currently active note
+- obsidian_patch_active: Insert/replace content in active note relative to a heading, block reference, or frontmatter field
+- obsidian_delete_active: Delete the currently active note
+
+#### Periodic Notes Management
+- obsidian_get_periodic_note: Get current periodic note for specified period (daily/weekly/monthly/quarterly/yearly)
+- obsidian_post_periodic: Append content to the current periodic note
+- obsidian_put_periodic: Replace entire content of the current periodic note
+- obsidian_patch_periodic: Insert/replace content in periodic note relative to a heading, block reference, or frontmatter field
+- obsidian_delete_periodic: Delete the current periodic note
+
+#### Commands & UI Control
+- obsidian_get_commands: List all available Obsidian commands from the command palette
+- obsidian_execute_command: Execute a specific Obsidian command by its ID
+- obsidian_open_file: Open a file in Obsidian UI, optionally in a new tab/pane
+
+#### Advanced Features
+- obsidian_get_recent_periodic_notes: Get most recent periodic notes for specified period type
+- obsidian_get_recent_changes: Get recently modified files in the vault
 
 ### Example prompts
 
-Its good to first instruct Claude to use Obsidian. Then it will always call the tool.
+It's good to first instruct Claude to use Obsidian. Then it will always call the tool.
 
-The use prompts like this:
+#### File & Search Operations
 - Get the contents of the last architecture call note and summarize them
 - Search for all files where Azure CosmosDb is mentioned and quickly explain to me the context in which it is mentioned
-- Summarize the last meeting notes and put them into a new note 'summary meeting.md'. Add an introduction so that I can send it via email.
+- Summarize the last meeting notes and put them into a new note 'summary meeting.md'. Add an introduction so that I can send it via email
+- Find all notes containing project deadlines and create a consolidated timeline
+
+#### Active Note Operations  
+- Add this meeting summary to the note I currently have open
+- Replace the active note content with the updated version I'm about to provide
+- Insert a new "Action Items" section under the "Meeting Notes" heading in my active document
+- Append today's accomplishments to whatever note I have open right now
+
+#### Periodic Notes Management
+- Add today's tasks to my daily note
+- Get the content of this week's weekly note and summarize the key points
+- Create a monthly review section in my monthly periodic note with this quarter's achievements
+- Append my standup update to today's daily note
+- Show me what's in my quarterly note and help me plan the next quarter
+
+#### Command Execution & UI Control
+- Open my project notes in a new tab so I can reference them
+- Execute the 'Toggle Reading View' command to switch the current view
+- Show me all available Obsidian commands so I can see what's possible
+- Open the file 'Projects/2024/planning.md' in a new pane
+- Run the command to create a new note from my meeting template
+
+## Path Encoding & Filename Support
+
+The server includes robust path encoding that handles filenames with spaces, special characters, Unicode, and emojis. All file operations work seamlessly with complex filenames.
+
+### Supported Filename Types
+
+- **Spaces**: `Projects/2024 Q1/meeting notes.md`
+- **Unicode characters**: `Área/configuração/São Paulo.md`  
+- **Special characters**: `Research (2024)/data #1 & analysis + results.md`
+- **Emojis**: `Projects 🚀/📘 documentation/notes ⭐.md`
+- **Mixed types**: `Área (Special) & More + [Data] = Value #1 🚀.md`
+
+### Technical Features
+
+- **Idempotent**: Prevents double-encoding of already encoded paths
+- **Unicode normalization**: Normalizes to NFC for cross-platform consistency
+- **RFC 3986 compliant**: Preserves safe characters (-_.~) while encoding others  
+- **Directory structure preservation**: Maintains "/" separators and trailing "/" slashes
+- **Backward compatible**: No changes to existing simple filename behavior
+
+### Example Operations
+
+```python
+# All these filename types work with any operation:
+obsidian_get_file_contents("Projects/Meeting Notes 📝.md")
+obsidian_append_content("Área/configuração.md", "New content")
+obsidian_list_files_in_dir("Special (Folder) & More")
+obsidian_patch_content("Research #1/data + analysis.md", ...)
+obsidian_list_files_in_dir("Reports/2024/")
+```
 
 ## Configuration
 
