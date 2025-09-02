@@ -2,9 +2,7 @@ import json
 import logging
 from collections.abc import Sequence
 from functools import lru_cache
-from typing import Any
-import os
-from dotenv import load_dotenv
+from typing import Any, Optional
 from mcp.server import Server
 from mcp.types import (
     Tool,
@@ -13,47 +11,51 @@ from mcp.types import (
     EmbeddedResource,
 )
 
-load_dotenv()
-
+from .config import get_settings, Settings
 from . import tools
-
-# Load environment variables
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mcp-obsidian")
 
-api_key = os.getenv("OBSIDIAN_API_KEY")
-if not api_key:
-    raise ValueError(f"OBSIDIAN_API_KEY environment variable required. Working directory: {os.getcwd()}")
+# Configuration will be set by CLI or loaded here
+config: Optional[Settings] = None
 
 app = Server("mcp-obsidian")
 
-tool_handlers = {}
-def add_tool_handler(tool_class: tools.ToolHandler):
-    global tool_handlers
+# List of all tool handler classes
+handler_classes = [
+    tools.ListFilesInDirToolHandler,
+    tools.ListFilesInVaultToolHandler,
+    tools.GetFileContentsToolHandler,
+    tools.SearchToolHandler,
+    tools.PatchContentToolHandler,
+    tools.AppendContentToolHandler,
+    tools.PutContentToolHandler,
+    tools.DeleteFileToolHandler,
+    tools.ComplexSearchToolHandler,
+    tools.BatchGetFileContentsToolHandler,
+    tools.PeriodicNotesToolHandler,
+    tools.RecentPeriodicNotesToolHandler,
+    tools.RecentChangesToolHandler,
+]
 
-    tool_handlers[tool_class.name] = tool_class
+tool_handlers = {}
+
+def initialize_tool_handlers(config: Settings):
+    """Initialize all tool handlers with the given configuration."""
+    global tool_handlers
+    tool_handlers.clear()
+    
+    for handler_class in handler_classes:
+        handler_instance = handler_class(config)
+        tool_handlers[handler_instance.name] = handler_instance
 
 def get_tool_handler(name: str) -> tools.ToolHandler | None:
     if name not in tool_handlers:
         return None
     
     return tool_handlers[name]
-
-add_tool_handler(tools.ListFilesInDirToolHandler())
-add_tool_handler(tools.ListFilesInVaultToolHandler())
-add_tool_handler(tools.GetFileContentsToolHandler())
-add_tool_handler(tools.SearchToolHandler())
-add_tool_handler(tools.PatchContentToolHandler())
-add_tool_handler(tools.AppendContentToolHandler())
-add_tool_handler(tools.PutContentToolHandler())
-add_tool_handler(tools.DeleteFileToolHandler())
-add_tool_handler(tools.ComplexSearchToolHandler())
-add_tool_handler(tools.BatchGetFileContentsToolHandler())
-add_tool_handler(tools.PeriodicNotesToolHandler())
-add_tool_handler(tools.RecentPeriodicNotesToolHandler())
-add_tool_handler(tools.RecentChangesToolHandler())
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
@@ -81,7 +83,15 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent | ImageCo
 
 
 async def main():
-
+    global config
+    
+    # Load config if not already set by CLI
+    if config is None:
+        config = get_settings()
+    
+    # Initialize tool handlers with the config
+    initialize_tool_handlers(config)
+    
     # Import here to avoid issues with event loops
     from mcp.server.stdio import stdio_server
 

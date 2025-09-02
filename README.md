@@ -29,11 +29,32 @@ The use prompts like this:
 
 ## Configuration
 
-### Obsidian REST API Key
+### Environment Variables
 
-There are two ways to configure the environment with the Obsidian REST API Key. 
+The following environment variables can be used to configure the MCP server:
 
-1. Add to server config (preferred)
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OBSIDIAN_API_KEY` | Yes | - | API key from Obsidian Local REST API plugin |
+| `OBSIDIAN_HOST` | No | `127.0.0.1` | Obsidian REST API host |
+| `OBSIDIAN_PORT` | No | `27124` | Obsidian REST API port |
+| `OBSIDIAN_PROTOCOL` | No | `https` | Protocol (`http` or `https`) |
+| `OBSIDIAN_CONNECT_TIMEOUT` | No | `3` | Connection timeout in seconds (1-60) |
+| `OBSIDIAN_READ_TIMEOUT` | No | `6` | Read timeout in seconds (1-300) |
+| `OBSIDIAN_VERIFY_SSL` | No | `false` | Verify SSL certificates |
+
+### Configuration Methods
+
+Configuration can be provided through multiple methods (in order of precedence):
+
+1. **Command-line arguments** (when running directly)
+2. **Environment variables** (as shown above)
+3. **`.env` file** in the working directory
+4. **Default values**
+
+#### For Claude Desktop
+
+**Add to server config (preferred)**
 
 ```json
 {
@@ -52,7 +73,9 @@ There are two ways to configure the environment with the Obsidian REST API Key.
 ```
 Sometimes Claude has issues detecting the location of uv / uvx. You can use `which uvx` to find and paste the full path in above config in such cases.
 
-2. Create a `.env` file in the working directory with the following required variables:
+#### Alternative: Using `.env` file
+
+Create a `.env` file in the working directory:
 
 ```
 OBSIDIAN_API_KEY=your_api_key_here
@@ -60,10 +83,27 @@ OBSIDIAN_HOST=your_obsidian_host
 OBSIDIAN_PORT=your_obsidian_port
 ```
 
-Note:
-- You can find the API key in the Obsidian plugin config
-- Default port is 27124 if not specified
-- Default host is 127.0.0.1 if not specified
+Note: You can find the API key in the Obsidian plugin settings
+
+### Command-line Interface
+
+The server includes a CLI for testing and configuration validation:
+
+```bash
+# Check configuration
+mcp-obsidian --config-check
+
+# Run with custom settings
+mcp-obsidian --api-key YOUR_KEY --host 192.168.1.100 --port 8080
+
+# Show help
+mcp-obsidian --help
+
+# Show version
+mcp-obsidian --version
+```
+
+CLI arguments take precedence over environment variables and `.env` files.
 
 ## Quickstart
 
@@ -129,6 +169,12 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 </details>
 
 ## Development
+
+### Contributing
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing requirements, and contribution guidelines.
+
+**Important for developers**: The project now uses a centralized configuration system. If you're working on tools or have an open PR, please review the [Configuration Migration Guide](docs/CONFIG_MIGRATION.md) to understand the changes.
 
 ### Building
 

@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import TYPE_CHECKING, Optional
 from mcp.types import (
     Tool,
     TextContent,
@@ -7,20 +8,39 @@ from mcp.types import (
 )
 import json
 import os
+import sys
 from . import obsidian
 
+if TYPE_CHECKING:
+    from .config import Settings
+
+# For backward compatibility - these will be removed once all tools use config
 api_key = os.getenv("OBSIDIAN_API_KEY", "")
 obsidian_host = os.getenv("OBSIDIAN_HOST", "127.0.0.1")
 
-if api_key == "":
-    raise ValueError(f"OBSIDIAN_API_KEY environment variable required. Working directory: {os.getcwd()}")
+# Don't validate at import time - let the server handle it when it starts
+# This allows CLI to work even without config set
 
 TOOL_LIST_FILES_IN_VAULT = "obsidian_list_files_in_vault"
 TOOL_LIST_FILES_IN_DIR = "obsidian_list_files_in_dir"
 
 class ToolHandler():
-    def __init__(self, tool_name: str):
+    def __init__(self, tool_name: str, config: 'Settings' = None):
         self.name = tool_name
+        self.config = config
+        # For backward compatibility
+        if not self.config:
+            # Create Obsidian client with module-level variables
+            self._api_key = api_key
+            self._obsidian_host = obsidian_host
+        
+    def get_obsidian_client(self) -> obsidian.Obsidian:
+        """Get an Obsidian client instance using the config."""
+        if self.config:
+            return obsidian.Obsidian(config=self.config)
+        else:
+            # Backward compatibility
+            return obsidian.Obsidian(api_key=self._api_key, host=self._obsidian_host)
 
     def get_tool_description(self) -> Tool:
         raise NotImplementedError()
@@ -29,8 +49,8 @@ class ToolHandler():
         raise NotImplementedError()
     
 class ListFilesInVaultToolHandler(ToolHandler):
-    def __init__(self):
-        super().__init__(TOOL_LIST_FILES_IN_VAULT)
+    def __init__(self, config: Optional['Settings'] = None):
+        super().__init__(TOOL_LIST_FILES_IN_VAULT, config)
 
     def get_tool_description(self):
         return Tool(
@@ -44,7 +64,7 @@ class ListFilesInVaultToolHandler(ToolHandler):
         )
 
     def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
-        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        api = self.get_obsidian_client()
 
         files = api.list_files_in_vault()
 
@@ -56,8 +76,8 @@ class ListFilesInVaultToolHandler(ToolHandler):
         ]
     
 class ListFilesInDirToolHandler(ToolHandler):
-    def __init__(self):
-        super().__init__(TOOL_LIST_FILES_IN_DIR)
+    def __init__(self, config: Optional["Settings"] = None):
+        super().__init__(TOOL_LIST_FILES_IN_DIR, config)
 
     def get_tool_description(self):
         return Tool(
@@ -80,7 +100,7 @@ class ListFilesInDirToolHandler(ToolHandler):
         if "dirpath" not in args:
             raise RuntimeError("dirpath argument missing in arguments")
 
-        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        api = self.get_obsidian_client()
 
         files = api.list_files_in_dir(args["dirpath"])
 
@@ -92,8 +112,8 @@ class ListFilesInDirToolHandler(ToolHandler):
         ]
     
 class GetFileContentsToolHandler(ToolHandler):
-    def __init__(self):
-        super().__init__("obsidian_get_file_contents")
+    def __init__(self, config: Optional["Settings"] = None):
+        super().__init__("obsidian_get_file_contents", config)
 
     def get_tool_description(self):
         return Tool(
@@ -116,20 +136,20 @@ class GetFileContentsToolHandler(ToolHandler):
         if "filepath" not in args:
             raise RuntimeError("filepath argument missing in arguments")
 
-        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        api = self.get_obsidian_client()
 
         content = api.get_file_contents(args["filepath"])
 
         return [
             TextContent(
                 type="text",
-                text=json.dumps(content, indent=2)
+                text=content
             )
         ]
     
 class SearchToolHandler(ToolHandler):
-    def __init__(self):
-        super().__init__("obsidian_simple_search")
+    def __init__(self, config: Optional["Settings"] = None):
+        super().__init__("obsidian_simple_search", config)
 
     def get_tool_description(self):
         return Tool(
@@ -159,7 +179,7 @@ class SearchToolHandler(ToolHandler):
 
         context_length = args.get("context_length", 100)
         
-        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        api = self.get_obsidian_client()
         results = api.search(args["query"], context_length)
         
         formatted_results = []
@@ -190,8 +210,8 @@ class SearchToolHandler(ToolHandler):
         ]
     
 class AppendContentToolHandler(ToolHandler):
-   def __init__(self):
-       super().__init__("obsidian_append_content")
+   def __init__(self, config: Optional["Settings"] = None):
+       super().__init__("obsidian_append_content", config)
 
    def get_tool_description(self):
        return Tool(
@@ -218,7 +238,7 @@ class AppendContentToolHandler(ToolHandler):
        if "filepath" not in args or "content" not in args:
            raise RuntimeError("filepath and content arguments required")
 
-       api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+       api = self.get_obsidian_client()
        api.append_content(args.get("filepath", ""), args["content"])
 
        return [
@@ -229,8 +249,8 @@ class AppendContentToolHandler(ToolHandler):
        ]
    
 class PatchContentToolHandler(ToolHandler):
-   def __init__(self):
-       super().__init__("obsidian_patch_content")
+   def __init__(self, config: Optional["Settings"] = None):
+       super().__init__("obsidian_patch_content", config)
 
    def get_tool_description(self):
        return Tool(
@@ -271,7 +291,7 @@ class PatchContentToolHandler(ToolHandler):
        if not all(k in args for k in ["filepath", "operation", "target_type", "target", "content"]):
            raise RuntimeError("filepath, operation, target_type, target and content arguments required")
 
-       api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+       api = self.get_obsidian_client()
        api.patch_content(
            args.get("filepath", ""),
            args.get("operation", ""),
@@ -288,8 +308,8 @@ class PatchContentToolHandler(ToolHandler):
        ]
        
 class PutContentToolHandler(ToolHandler):
-   def __init__(self):
-       super().__init__("obsidian_put_content")
+   def __init__(self, config: Optional["Settings"] = None):
+       super().__init__("obsidian_put_content", config)
 
    def get_tool_description(self):
        return Tool(
@@ -316,7 +336,7 @@ class PutContentToolHandler(ToolHandler):
        if "filepath" not in args or "content" not in args:
            raise RuntimeError("filepath and content arguments required")
 
-       api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+       api = self.get_obsidian_client()
        api.put_content(args.get("filepath", ""), args["content"])
 
        return [
@@ -328,8 +348,8 @@ class PutContentToolHandler(ToolHandler):
    
 
 class DeleteFileToolHandler(ToolHandler):
-   def __init__(self):
-       super().__init__("obsidian_delete_file")
+   def __init__(self, config: Optional["Settings"] = None):
+       super().__init__("obsidian_delete_file", config)
 
    def get_tool_description(self):
        return Tool(
@@ -360,7 +380,7 @@ class DeleteFileToolHandler(ToolHandler):
        if not args.get("confirm", False):
            raise RuntimeError("confirm must be set to true to delete a file")
 
-       api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+       api = self.get_obsidian_client()
        api.delete_file(args["filepath"])
 
        return [
@@ -371,8 +391,8 @@ class DeleteFileToolHandler(ToolHandler):
        ]
    
 class ComplexSearchToolHandler(ToolHandler):
-   def __init__(self):
-       super().__init__("obsidian_complex_search")
+   def __init__(self, config: Optional["Settings"] = None):
+       super().__init__("obsidian_complex_search", config)
 
    def get_tool_description(self):
        return Tool(
@@ -424,7 +444,7 @@ class ComplexSearchToolHandler(ToolHandler):
        if "query" not in args:
            raise RuntimeError("query argument missing in arguments")
 
-       api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+       api = self.get_obsidian_client()
        results = api.search_json(args.get("query", ""))
 
        return [
@@ -435,8 +455,8 @@ class ComplexSearchToolHandler(ToolHandler):
        ]
 
 class BatchGetFileContentsToolHandler(ToolHandler):
-    def __init__(self):
-        super().__init__("obsidian_batch_get_file_contents")
+    def __init__(self, config: Optional["Settings"] = None):
+        super().__init__("obsidian_batch_get_file_contents", config)
 
     def get_tool_description(self):
         return Tool(
@@ -463,7 +483,7 @@ class BatchGetFileContentsToolHandler(ToolHandler):
         if "filepaths" not in args:
             raise RuntimeError("filepaths argument missing in arguments")
 
-        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        api = self.get_obsidian_client()
         content = api.get_batch_file_contents(args["filepaths"])
 
         return [
@@ -474,8 +494,8 @@ class BatchGetFileContentsToolHandler(ToolHandler):
         ]
 
 class PeriodicNotesToolHandler(ToolHandler):
-    def __init__(self):
-        super().__init__("obsidian_get_periodic_note")
+    def __init__(self, config: Optional["Settings"] = None):
+        super().__init__("obsidian_get_periodic_note", config)
 
     def get_tool_description(self):
         return Tool(
@@ -514,7 +534,7 @@ class PeriodicNotesToolHandler(ToolHandler):
         if type not in valid_types:
             raise RuntimeError(f"Invalid type: {type}. Must be one of: {', '.join(valid_types)}")
 
-        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        api = self.get_obsidian_client()
         content = api.get_periodic_note(period,type)
 
         return [
@@ -525,8 +545,8 @@ class PeriodicNotesToolHandler(ToolHandler):
         ]
         
 class RecentPeriodicNotesToolHandler(ToolHandler):
-    def __init__(self):
-        super().__init__("obsidian_get_recent_periodic_notes")
+    def __init__(self, config: Optional["Settings"] = None):
+        super().__init__("obsidian_get_recent_periodic_notes", config)
 
     def get_tool_description(self):
         return Tool(
@@ -574,7 +594,7 @@ class RecentPeriodicNotesToolHandler(ToolHandler):
         if not isinstance(include_content, bool):
             raise RuntimeError(f"Invalid include_content: {include_content}. Must be a boolean")
 
-        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        api = self.get_obsidian_client()
         results = api.get_recent_periodic_notes(period, limit, include_content)
 
         return [
@@ -585,8 +605,8 @@ class RecentPeriodicNotesToolHandler(ToolHandler):
         ]
         
 class RecentChangesToolHandler(ToolHandler):
-    def __init__(self):
-        super().__init__("obsidian_get_recent_changes")
+    def __init__(self, config: Optional["Settings"] = None):
+        super().__init__("obsidian_get_recent_changes", config)
 
     def get_tool_description(self):
         return Tool(
@@ -621,7 +641,7 @@ class RecentChangesToolHandler(ToolHandler):
         if not isinstance(days, int) or days < 1:
             raise RuntimeError(f"Invalid days: {days}. Must be a positive integer")
 
-        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        api = self.get_obsidian_client()
         results = api.get_recent_changes(limit, days)
 
         return [
