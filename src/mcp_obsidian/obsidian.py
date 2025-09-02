@@ -27,9 +27,9 @@ class Obsidian():
             self.protocol = config.obsidian_protocol
             self.host = config.obsidian_host
             self.port = config.obsidian_port
-            # These are hardcoded for now (not configurable)
-            self.verify_ssl = False
-            self.timeout = (3, 6)
+            self.verify_ssl = config.obsidian_verify_ssl
+            # Construct timeout tuple from individual timeout values
+            self.timeout = (config.obsidian_connect_timeout, config.obsidian_read_timeout)
         else:
             # Fall back to individual parameters or environment variables for backward compatibility
             self.api_key = api_key or os.getenv('OBSIDIAN_API_KEY', '')

@@ -174,6 +174,9 @@ The following environment variables are supported:
 | `OBSIDIAN_HOST` | No | `127.0.0.1` | Obsidian REST API host |
 | `OBSIDIAN_PORT` | No | `27124` | Obsidian REST API port |
 | `OBSIDIAN_PROTOCOL` | No | `https` | Protocol (`http` or `https`) |
+| `OBSIDIAN_CONNECT_TIMEOUT` | No | `3` | Connection timeout in seconds (1-60) |
+| `OBSIDIAN_READ_TIMEOUT` | No | `6` | Read timeout in seconds (1-300) |
+| `OBSIDIAN_VERIFY_SSL` | No | `false` | Verify SSL certificates |
 
 ## Testing with Configuration
 

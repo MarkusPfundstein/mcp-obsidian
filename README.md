@@ -29,11 +29,25 @@ The use prompts like this:
 
 ## Configuration
 
-### Obsidian REST API Key
+### Environment Variables
 
-There are two ways to configure the environment with the Obsidian REST API Key. 
+The following environment variables can be used to configure the MCP server:
 
-1. Add to server config (preferred)
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OBSIDIAN_API_KEY` | Yes | - | API key from Obsidian Local REST API plugin |
+| `OBSIDIAN_HOST` | No | `127.0.0.1` | Obsidian REST API host |
+| `OBSIDIAN_PORT` | No | `27124` | Obsidian REST API port |
+| `OBSIDIAN_PROTOCOL` | No | `https` | Protocol (`http` or `https`) |
+| `OBSIDIAN_CONNECT_TIMEOUT` | No | `3` | Connection timeout in seconds (1-60) |
+| `OBSIDIAN_READ_TIMEOUT` | No | `6` | Read timeout in seconds (1-300) |
+| `OBSIDIAN_VERIFY_SSL` | No | `false` | Verify SSL certificates |
+
+### Configuration Methods
+
+There are two ways to configure these environment variables:
+
+1. **Add to server config (preferred)**
 
 ```json
 {
@@ -52,7 +66,7 @@ There are two ways to configure the environment with the Obsidian REST API Key.
 ```
 Sometimes Claude has issues detecting the location of uv / uvx. You can use `which uvx` to find and paste the full path in above config in such cases.
 
-2. Create a `.env` file in the working directory with the following required variables:
+2. **Create a `.env` file** in the working directory:
 
 ```
 OBSIDIAN_API_KEY=your_api_key_here
@@ -60,10 +74,7 @@ OBSIDIAN_HOST=your_obsidian_host
 OBSIDIAN_PORT=your_obsidian_port
 ```
 
-Note:
-- You can find the API key in the Obsidian plugin config
-- Default port is 27124 if not specified
-- Default host is 127.0.0.1 if not specified
+Note: You can find the API key in the Obsidian plugin settings
 
 ## Quickstart
 

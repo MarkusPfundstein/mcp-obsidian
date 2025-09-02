@@ -36,6 +36,9 @@ class TestSettings:
             assert settings.obsidian_host == "127.0.0.1"
             assert settings.obsidian_port == 27124
             assert settings.obsidian_protocol == "https"
+            assert settings.obsidian_connect_timeout == 3
+            assert settings.obsidian_read_timeout == 6
+            assert settings.obsidian_verify_ssl is False
     
     def test_settings_missing_api_key(self):
         """Test that missing API key raises validation error."""
@@ -78,6 +81,26 @@ class TestSettings:
                 get_settings()
             assert "Port must be between 1 and 65535" in str(exc_info.value)
     
+    def test_timeout_validation(self):
+        """Test that timeout values are validated."""
+        # Test connect timeout out of range
+        with patch.dict(os.environ, {
+            "OBSIDIAN_API_KEY": "test-key",
+            "OBSIDIAN_CONNECT_TIMEOUT": "0"  # Below minimum
+        }):
+            with pytest.raises(ValidationError) as exc_info:
+                get_settings()
+            assert "greater than or equal to 1" in str(exc_info.value).lower()
+        
+        # Test read timeout out of range
+        with patch.dict(os.environ, {
+            "OBSIDIAN_API_KEY": "test-key",
+            "OBSIDIAN_READ_TIMEOUT": "301"  # Above maximum
+        }):
+            with pytest.raises(ValidationError) as exc_info:
+                get_settings()
+            assert "less than or equal to 300" in str(exc_info.value).lower()
+    
     def test_base_url_property(self):
         """Test that base_url is correctly constructed."""
         with patch.dict(os.environ, {
@@ -109,7 +132,7 @@ class TestObsidianWithConfig:
             assert client.port == 9999
             assert client.protocol == "http"
             assert client.get_base_url() == "http://config-host:9999"
-            # Verify hardcoded values
+            # Verify default timeout and SSL values
             assert client.verify_ssl is False
             assert client.timeout == (3, 6)
     
@@ -126,6 +149,20 @@ class TestObsidianWithConfig:
         assert client.host == "direct-host"
         assert client.port == 7777
         assert client.protocol == "https"
+    
+    def test_obsidian_with_custom_timeouts(self):
+        """Test that Obsidian client uses custom timeout values from config."""
+        with patch.dict(os.environ, {
+            "OBSIDIAN_API_KEY": "test-key",
+            "OBSIDIAN_CONNECT_TIMEOUT": "10",
+            "OBSIDIAN_READ_TIMEOUT": "30",
+            "OBSIDIAN_VERIFY_SSL": "true"
+        }):
+            config = get_settings()
+            client = Obsidian(config=config)
+            
+            assert client.timeout == (10, 30)
+            assert client.verify_ssl is True
     
     def test_obsidian_config_precedence(self):
         """Test that config object takes precedence over individual parameters."""

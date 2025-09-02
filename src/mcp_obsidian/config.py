@@ -37,6 +37,29 @@ class Settings(BaseSettings):
         alias="OBSIDIAN_PROTOCOL"
     )
     
+    # Connection settings - CLI-friendly individual fields
+    obsidian_connect_timeout: int = Field(
+        default=3,
+        ge=1,
+        le=60,
+        description="Connection timeout in seconds",
+        alias="OBSIDIAN_CONNECT_TIMEOUT"
+    )
+    
+    obsidian_read_timeout: int = Field(
+        default=6,
+        ge=1,
+        le=300,
+        description="Read timeout in seconds",
+        alias="OBSIDIAN_READ_TIMEOUT"
+    )
+    
+    obsidian_verify_ssl: bool = Field(
+        default=False,
+        description="Verify SSL certificates (set to true for production)",
+        alias="OBSIDIAN_VERIFY_SSL"
+    )
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
