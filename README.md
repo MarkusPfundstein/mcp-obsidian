@@ -45,9 +45,16 @@ The following environment variables can be used to configure the MCP server:
 
 ### Configuration Methods
 
-There are two ways to configure these environment variables:
+Configuration can be provided through multiple methods (in order of precedence):
 
-1. **Add to server config (preferred)**
+1. **Command-line arguments** (when running directly)
+2. **Environment variables** (as shown above)
+3. **`.env` file** in the working directory
+4. **Default values**
+
+#### For Claude Desktop
+
+**Add to server config (preferred)**
 
 ```json
 {
@@ -66,7 +73,9 @@ There are two ways to configure these environment variables:
 ```
 Sometimes Claude has issues detecting the location of uv / uvx. You can use `which uvx` to find and paste the full path in above config in such cases.
 
-2. **Create a `.env` file** in the working directory:
+#### Alternative: Using `.env` file
+
+Create a `.env` file in the working directory:
 
 ```
 OBSIDIAN_API_KEY=your_api_key_here
@@ -75,6 +84,26 @@ OBSIDIAN_PORT=your_obsidian_port
 ```
 
 Note: You can find the API key in the Obsidian plugin settings
+
+### Command-line Interface
+
+The server includes a CLI for testing and configuration validation:
+
+```bash
+# Check configuration
+mcp-obsidian --config-check
+
+# Run with custom settings
+mcp-obsidian --api-key YOUR_KEY --host 192.168.1.100 --port 8080
+
+# Show help
+mcp-obsidian --help
+
+# Show version
+mcp-obsidian --version
+```
+
+CLI arguments take precedence over environment variables and `.env` files.
 
 ## Quickstart
 

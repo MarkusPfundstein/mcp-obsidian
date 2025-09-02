@@ -6,6 +6,12 @@ This guide helps developers understand the new centralized configuration system 
 
 As of v0.3.0, mcp-obsidian uses a centralized configuration system based on `pydantic-settings`. This replaces the previous approach of reading environment variables directly in multiple places throughout the codebase.
 
+**Recent Changes (CLI Refactoring):**
+- Added Typer-based CLI with `--config-check`, `--version`, and configuration options
+- Fixed deferred initialization to support CLI functionality
+- Removed `python-dotenv` dependency (pydantic-settings handles .env files)
+- Changed from Field `alias` to `env_prefix` for cleaner environment variable handling
+
 **New to the configuration system?** Read [CONFIG.md](CONFIG.md) first to understand the architecture and benefits.
 
 ## Key Changes
@@ -70,7 +76,14 @@ Then register it in `server.py`:
 
 ```python
 # In server.py
-add_tool_handler(tools.YourNewToolHandler(config))
+# Add your handler class to the list
+handler_classes = [
+    tools.ListFilesInDirToolHandler,
+    tools.YourNewToolHandler,  # Add your new handler here
+    # ... other handlers
+]
+
+# Handlers are initialized automatically in initialize_tool_handlers()
 ```
 
 ### Migrating Existing Tools
@@ -99,11 +112,14 @@ If you have an existing tool that directly uses environment variables:
 
 3. **Update registration** in server.py:
    ```python
-   # Before
-   add_tool_handler(tools.YourToolHandler())
+   # Before (at module level)
+   tool_handlers["your_tool"] = tools.YourToolHandler()
    
-   # After
-   add_tool_handler(tools.YourToolHandler(config))
+   # After (add to handler_classes list)
+   handler_classes = [
+       # ... existing handlers
+       tools.YourToolHandler,
+   ]
    ```
 
 ## For Core Contributors
@@ -117,11 +133,11 @@ To add a new configuration option:
    class Settings(BaseSettings):
        # Existing fields...
        
-       your_new_option: str = Field(
+       obsidian_your_new_option: str = Field(
            default="default_value",
-           description="Description of the option",
-           alias="YOUR_ENV_VAR_NAME"
+           description="Description of the option"
        )
+       # Note: Environment variable will be OBSIDIAN_YOUR_NEW_OPTION (uppercase)
    ```
 
 2. **Add validation if needed**:
@@ -248,14 +264,58 @@ However, new code should use the centralized configuration approach for consiste
 os.environ["OBSIDIAN_API_KEY"] = "test-api-key"
 ```
 
+## CLI Interface
+
+The new CLI provides several useful commands:
+
+```bash
+# Check current configuration
+mcp-obsidian --config-check
+
+# Run with custom settings (overrides env vars)
+mcp-obsidian --api-key YOUR_KEY --host 192.168.1.100 --port 8080
+
+# Show version
+mcp-obsidian --version
+
+# Get help
+mcp-obsidian --help
+```
+
+### Adding CLI Options for New Configuration
+
+If your configuration option should be available via CLI:
+
+```python
+# In cli.py, add to the main() function parameters:
+new_option: Annotated[
+    Optional[str],
+    typer.Option(
+        "--new-option",
+        envvar="OBSIDIAN_NEW_OPTION",
+        help="Description of the option",
+        show_default="default_value",
+    ),
+] = None,
+
+# Then add to settings_kwargs dict comprehension:
+settings_kwargs = {
+    key: val for key, val in [
+        # ... existing options
+        ("obsidian_new_option", new_option),
+    ] if val is not None
+}
+```
+
 ## Benefits of the New System
 
 1. **Single source of truth** - All configuration in one place
 2. **Type safety** - Pydantic validates types and values
 3. **Better testing** - Easy to inject test configurations
-4. **Future-proof** - Ready for CLI arguments via Typer
+4. **CLI support** - Configuration via command-line arguments
 5. **Clear defaults** - All defaults defined in one place
 6. **Validation** - Port ranges, protocol values, etc. are validated
+7. **Proper precedence** - CLI args > env vars > .env file > defaults
 
 ## Questions or Issues?
 
