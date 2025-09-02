@@ -130,6 +130,10 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
 ## Development
 
+### Contributing
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing requirements, and contribution guidelines.
+
 ### Building
 
 To prepare the package for distribution:
