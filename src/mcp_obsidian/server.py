@@ -3,8 +3,6 @@ import logging
 from collections.abc import Sequence
 from functools import lru_cache
 from typing import Any
-import os
-from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.types import (
     Tool,
@@ -13,19 +11,19 @@ from mcp.types import (
     EmbeddedResource,
 )
 
-load_dotenv()
-
+from .config import get_settings, Settings
 from . import tools
-
-# Load environment variables
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mcp-obsidian")
 
-api_key = os.getenv("OBSIDIAN_API_KEY")
-if not api_key:
-    raise ValueError(f"OBSIDIAN_API_KEY environment variable required. Working directory: {os.getcwd()}")
+# Load configuration once at startup
+try:
+    config: Settings = get_settings()
+except Exception as e:
+    logger.error(f"Failed to load configuration: {e}")
+    raise
 
 app = Server("mcp-obsidian")
 
@@ -41,19 +39,19 @@ def get_tool_handler(name: str) -> tools.ToolHandler | None:
     
     return tool_handlers[name]
 
-add_tool_handler(tools.ListFilesInDirToolHandler())
-add_tool_handler(tools.ListFilesInVaultToolHandler())
-add_tool_handler(tools.GetFileContentsToolHandler())
-add_tool_handler(tools.SearchToolHandler())
-add_tool_handler(tools.PatchContentToolHandler())
-add_tool_handler(tools.AppendContentToolHandler())
-add_tool_handler(tools.PutContentToolHandler())
-add_tool_handler(tools.DeleteFileToolHandler())
-add_tool_handler(tools.ComplexSearchToolHandler())
-add_tool_handler(tools.BatchGetFileContentsToolHandler())
-add_tool_handler(tools.PeriodicNotesToolHandler())
-add_tool_handler(tools.RecentPeriodicNotesToolHandler())
-add_tool_handler(tools.RecentChangesToolHandler())
+add_tool_handler(tools.ListFilesInDirToolHandler(config))
+add_tool_handler(tools.ListFilesInVaultToolHandler(config))
+add_tool_handler(tools.GetFileContentsToolHandler(config))
+add_tool_handler(tools.SearchToolHandler(config))
+add_tool_handler(tools.PatchContentToolHandler(config))
+add_tool_handler(tools.AppendContentToolHandler(config))
+add_tool_handler(tools.PutContentToolHandler(config))
+add_tool_handler(tools.DeleteFileToolHandler(config))
+add_tool_handler(tools.ComplexSearchToolHandler(config))
+add_tool_handler(tools.BatchGetFileContentsToolHandler(config))
+add_tool_handler(tools.PeriodicNotesToolHandler(config))
+add_tool_handler(tools.RecentPeriodicNotesToolHandler(config))
+add_tool_handler(tools.RecentChangesToolHandler(config))
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:

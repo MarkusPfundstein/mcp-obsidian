@@ -57,7 +57,7 @@ uv run pytest --cov=src/mcp_obsidian --cov-report=term-missing
 1. **Type hints**: Use type hints for all function parameters and return values
 2. **Error handling**: Use the `_safe_call` pattern for API calls
 3. **Tool handlers**: Inherit from `ToolHandler` base class
-4. **Environment variables**: Currently read directly, but will be refactored to use centralized configuration
+4. **Configuration**: Use the centralized configuration system (see [Configuration Migration Guide](docs/CONFIG_MIGRATION.md))
 
 ## Adding New Tools
 
@@ -66,8 +66,8 @@ To add a new tool:
 1. **Create the tool handler** in `src/mcp_obsidian/tools.py`:
    ```python
    class YourToolHandler(ToolHandler):
-       def __init__(self):
-           super().__init__("obsidian_your_tool")
+       def __init__(self, config: Optional['Settings'] = None):
+           super().__init__("obsidian_your_tool", config)
        
        def get_tool_description(self):
            return Tool(
@@ -77,13 +77,17 @@ To add a new tool:
            )
        
        def run_tool(self, args: dict):
+           # Get configured Obsidian client
+           api = self.get_obsidian_client()
            # Implementation
    ```
 
 2. **Register the handler** in `src/mcp_obsidian/server.py`:
    ```python
-   add_tool_handler(tools.YourToolHandler())
+   add_tool_handler(tools.YourToolHandler(config))
    ```
+   
+   **Note**: See the [Configuration Migration Guide](docs/CONFIG_MIGRATION.md) for detailed information about the configuration system.
 
 3. **Add tests** in `tests/test_tools.py`:
    ```python

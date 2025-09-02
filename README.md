@@ -134,6 +134,8 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
 Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing requirements, and contribution guidelines.
 
+**Important for developers**: The project now uses a centralized configuration system. If you're working on tools or have an open PR, please review the [Configuration Migration Guide](docs/CONFIG_MIGRATION.md) to understand the changes.
+
 ### Building
 
 To prepare the package for distribution:

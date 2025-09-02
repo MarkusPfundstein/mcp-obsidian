@@ -1,28 +1,51 @@
 import requests
 import urllib.parse
 import os
-from typing import Any
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .config import Settings
 
 class Obsidian():
     def __init__(
             self, 
-            api_key: str,
-            protocol: str = os.getenv('OBSIDIAN_PROTOCOL', 'https').lower(),
-            host: str = str(os.getenv('OBSIDIAN_HOST', '127.0.0.1')),
-            port: int = int(os.getenv('OBSIDIAN_PORT', '27124')),
-            verify_ssl: bool = False,
+            api_key: Optional[str] = None,
+            protocol: Optional[str] = None,
+            host: Optional[str] = None,
+            port: Optional[int] = None,
+            verify_ssl: Optional[bool] = None,
+            config: Optional['Settings'] = None,
         ):
-        self.api_key = api_key
+        """Initialize Obsidian client.
         
-        if protocol == 'http':
-            self.protocol = 'http'
+        Can be initialized either with individual parameters or a config object.
+        If config is provided, it takes precedence over individual parameters.
+        """
+        if config:
+            # Use config object if provided
+            self.api_key = config.obsidian_api_key
+            self.protocol = config.obsidian_protocol
+            self.host = config.obsidian_host
+            self.port = config.obsidian_port
+            # These are hardcoded for now (not configurable)
+            self.verify_ssl = False
+            self.timeout = (3, 6)
         else:
-            self.protocol = 'https' # Default to https for any other value, including 'https'
-
-        self.host = host
-        self.port = port
-        self.verify_ssl = verify_ssl
-        self.timeout = (3, 6)
+            # Fall back to individual parameters or environment variables for backward compatibility
+            self.api_key = api_key or os.getenv('OBSIDIAN_API_KEY', '')
+            if not self.api_key:
+                raise ValueError("api_key is required")
+            
+            protocol = protocol or os.getenv('OBSIDIAN_PROTOCOL', 'https')
+            if protocol.lower() == 'http':
+                self.protocol = 'http'
+            else:
+                self.protocol = 'https'
+            
+            self.host = host or os.getenv('OBSIDIAN_HOST', '127.0.0.1')
+            self.port = port or int(os.getenv('OBSIDIAN_PORT', '27124'))
+            self.verify_ssl = verify_ssl if verify_ssl is not None else False
+            self.timeout = (3, 6)
 
     def get_base_url(self) -> str:
         return f'{self.protocol}://{self.host}:{self.port}'
