@@ -9,10 +9,22 @@ with patch.dict(os.environ, {}, clear=True):
     os.environ["OBSIDIAN_API_KEY"] = "test-api-key"
     from mcp_obsidian.obsidian import Obsidian
     from mcp_obsidian import server
+    from mcp_obsidian.config import Settings
     from mcp_obsidian.tools import ListFilesInVaultToolHandler
 
 class TestBasicFunctionality:
     """Test basic functionality to ensure nothing breaks during refactoring."""
+    
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Initialize tool handlers before each test."""
+        # Create a test config
+        test_config = Settings(obsidian_api_key="test-api-key")
+        # Initialize handlers for testing
+        server.initialize_tool_handlers(test_config)
+        yield
+        # Clean up after test
+        server.tool_handlers.clear()
     
     def test_obsidian_client_creation(self):
         """Test that we can create an Obsidian client."""
@@ -23,6 +35,9 @@ class TestBasicFunctionality:
         
     def test_tool_handler_exists(self):
         """Test that tool handlers are registered."""
+        # Re-initialize to ensure tools are registered
+        test_config = Settings(obsidian_api_key="test-api-key")
+        server.initialize_tool_handlers(test_config)
         assert "obsidian_list_files_in_vault" in server.tool_handlers
         assert "obsidian_get_file_contents" in server.tool_handlers
         assert "obsidian_simple_search" in server.tool_handlers

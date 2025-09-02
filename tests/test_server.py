@@ -2,31 +2,39 @@
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from mcp_obsidian import server
+from mcp_obsidian.config import Settings
 from mcp.types import Tool
 
 class TestServer:
     """Test the MCP server functionality."""
     
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Initialize tool handlers before each test."""
+        # Create a test config
+        test_config = Settings(obsidian_api_key="test_key")
+        # Initialize handlers for testing
+        server.initialize_tool_handlers(test_config)
+        yield
+        # Clean up after test
+        server.tool_handlers.clear()
+    
     def test_tool_handler_registration(self):
-        """Test that tool handlers are registered correctly."""
+        """Test that tool handlers can be registered and retrieved."""
         # Clear existing handlers for test
-        original_handlers = server.tool_handlers.copy()
         server.tool_handlers.clear()
         
         # Create mock handler
         mock_handler = MagicMock()
         mock_handler.name = "test_tool"
         
-        # Register handler
-        server.add_tool_handler(mock_handler)
+        # Register handler directly
+        server.tool_handlers["test_tool"] = mock_handler
         
         # Check registration
         assert "test_tool" in server.tool_handlers
         assert server.get_tool_handler("test_tool") == mock_handler
         assert server.get_tool_handler("nonexistent") is None
-        
-        # Restore original handlers
-        server.tool_handlers = original_handlers
         
     @pytest.mark.asyncio
     async def test_list_tools(self):
@@ -120,21 +128,25 @@ class TestServer:
         server.tool_handlers = original_handlers
         
     def test_all_tools_registered(self):
-        """Test that all expected tools are registered."""
+        """Test that all expected tools are registered after initialization."""
+        # Re-initialize with test config to ensure all tools are registered
+        test_config = Settings(obsidian_api_key="test_key")
+        server.initialize_tool_handlers(test_config)
+        
         expected_tools = [
             "obsidian_list_files_in_vault",
             "obsidian_list_files_in_dir",
             "obsidian_get_file_contents",
-            "obsidian_search",
+            "obsidian_simple_search",
             "obsidian_patch_content",
             "obsidian_append_content",
             "obsidian_put_content",
             "obsidian_delete_file",
             "obsidian_complex_search",
             "obsidian_batch_get_file_contents",
-            "obsidian_periodic_notes",
-            "obsidian_recent_periodic_notes",
-            "obsidian_recent_changes"
+            "obsidian_get_periodic_note",
+            "obsidian_get_recent_periodic_notes",
+            "obsidian_get_recent_changes"
         ]
         
         for tool_name in expected_tools:

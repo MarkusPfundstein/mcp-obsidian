@@ -2,6 +2,7 @@
 import pytest
 import json
 from unittest.mock import MagicMock, patch
+from mcp_obsidian.config import Settings
 from mcp_obsidian.tools import (
     ListFilesInVaultToolHandler,
     ListFilesInDirToolHandler,
@@ -11,12 +12,15 @@ from mcp_obsidian.tools import (
     DeleteFileToolHandler
 )
 
+# Create a test config for all tool handlers
+test_config = Settings(obsidian_api_key="test-api-key")
+
 class TestListFilesInVaultToolHandler:
     """Test the ListFilesInVaultToolHandler."""
     
     def test_tool_description(self):
         """Test tool description."""
-        handler = ListFilesInVaultToolHandler()
+        handler = ListFilesInVaultToolHandler(test_config)
         tool = handler.get_tool_description()
         
         assert tool.name == "obsidian_list_files_in_vault"
@@ -33,7 +37,7 @@ class TestListFilesInVaultToolHandler:
             {"path": "folder1", "type": "directory"}
         ]
         
-        handler = ListFilesInVaultToolHandler()
+        handler = ListFilesInVaultToolHandler(test_config)
         result = handler.run_tool({})
         
         assert len(result) == 1
@@ -47,7 +51,7 @@ class TestListFilesInDirToolHandler:
     
     def test_tool_description(self):
         """Test tool description."""
-        handler = ListFilesInDirToolHandler()
+        handler = ListFilesInDirToolHandler(test_config)
         tool = handler.get_tool_description()
         
         assert tool.name == "obsidian_list_files_in_dir"
@@ -56,7 +60,7 @@ class TestListFilesInDirToolHandler:
         
     def test_run_tool_missing_dirpath(self):
         """Test running tool without required dirpath."""
-        handler = ListFilesInDirToolHandler()
+        handler = ListFilesInDirToolHandler(test_config)
         
         with pytest.raises(RuntimeError) as exc_info:
             handler.run_tool({})
@@ -71,7 +75,7 @@ class TestListFilesInDirToolHandler:
             {"path": "subfolder/file2.md", "type": "file"}
         ]
         
-        handler = ListFilesInDirToolHandler()
+        handler = ListFilesInDirToolHandler(test_config)
         result = handler.run_tool({"dirpath": "subfolder"})
         
         mock_client.list_files_in_dir.assert_called_once_with("subfolder")
@@ -84,7 +88,7 @@ class TestGetFileContentsToolHandler:
     
     def test_tool_description(self):
         """Test tool description."""
-        handler = GetFileContentsToolHandler()
+        handler = GetFileContentsToolHandler(test_config)
         tool = handler.get_tool_description()
         
         assert tool.name == "obsidian_get_file_contents"
@@ -92,7 +96,7 @@ class TestGetFileContentsToolHandler:
         
     def test_run_tool_missing_filepath(self):
         """Test running tool without required filepath."""
-        handler = GetFileContentsToolHandler()
+        handler = GetFileContentsToolHandler(test_config)
         
         with pytest.raises(RuntimeError) as exc_info:
             handler.run_tool({})
@@ -105,7 +109,7 @@ class TestGetFileContentsToolHandler:
         mock_obsidian_class.return_value = mock_client
         mock_client.get_file_contents.return_value = "# Test Content\n\nThis is a test."
         
-        handler = GetFileContentsToolHandler()
+        handler = GetFileContentsToolHandler(test_config)
         result = handler.run_tool({"filepath": "test.md"})
         
         mock_client.get_file_contents.assert_called_once_with("test.md")
@@ -117,16 +121,16 @@ class TestSearchToolHandler:
     
     def test_tool_description(self):
         """Test tool description."""
-        handler = SearchToolHandler()
+        handler = SearchToolHandler(test_config)
         tool = handler.get_tool_description()
         
-        assert tool.name == "obsidian_search"
-        assert "search" in tool.description.lower()
+        assert tool.name == "obsidian_simple_search"
+        assert "simple search" in tool.description.lower()
         assert "query" in tool.inputSchema["required"]
         
     def test_run_tool_missing_query(self):
         """Test running tool without required query."""
-        handler = SearchToolHandler()
+        handler = SearchToolHandler(test_config)
         
         with pytest.raises(RuntimeError) as exc_info:
             handler.run_tool({})
@@ -144,10 +148,10 @@ class TestSearchToolHandler:
             }
         ]
         
-        handler = SearchToolHandler()
+        handler = SearchToolHandler(test_config)
         result = handler.run_tool({"query": "test query"})
         
-        mock_client.search.assert_called_once_with("test query")
+        mock_client.search.assert_called_once_with("test query", 100)
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data[0]["filename"] == "note1.md"
@@ -157,7 +161,7 @@ class TestAppendContentToolHandler:
     
     def test_tool_description(self):
         """Test tool description."""
-        handler = AppendContentToolHandler()
+        handler = AppendContentToolHandler(test_config)
         tool = handler.get_tool_description()
         
         assert tool.name == "obsidian_append_content"
@@ -167,15 +171,15 @@ class TestAppendContentToolHandler:
         
     def test_run_tool_missing_args(self):
         """Test running tool without required arguments."""
-        handler = AppendContentToolHandler()
+        handler = AppendContentToolHandler(test_config)
         
         with pytest.raises(RuntimeError) as exc_info:
             handler.run_tool({})
-        assert "filepath argument missing" in str(exc_info.value)
+        assert "filepath and content arguments required" in str(exc_info.value)
         
         with pytest.raises(RuntimeError) as exc_info:
             handler.run_tool({"filepath": "test.md"})
-        assert "content argument missing" in str(exc_info.value)
+        assert "filepath and content arguments required" in str(exc_info.value)
         
     @patch('mcp_obsidian.tools.obsidian.Obsidian')
     def test_run_tool_with_args(self, mock_obsidian_class):
@@ -184,7 +188,7 @@ class TestAppendContentToolHandler:
         mock_obsidian_class.return_value = mock_client
         mock_client.append_content.return_value = {"message": "Content appended"}
         
-        handler = AppendContentToolHandler()
+        handler = AppendContentToolHandler(test_config)
         result = handler.run_tool({
             "filepath": "test.md",
             "content": "New content to append"
@@ -195,15 +199,14 @@ class TestAppendContentToolHandler:
             "New content to append"
         )
         assert len(result) == 1
-        data = json.loads(result[0].text)
-        assert data["message"] == "Content appended"
+        assert result[0].text == "Successfully appended content to test.md"
 
 class TestDeleteFileToolHandler:
     """Test the DeleteFileToolHandler."""
     
     def test_tool_description(self):
         """Test tool description."""
-        handler = DeleteFileToolHandler()
+        handler = DeleteFileToolHandler(test_config)
         tool = handler.get_tool_description()
         
         assert tool.name == "obsidian_delete_file"
@@ -217,10 +220,10 @@ class TestDeleteFileToolHandler:
         mock_obsidian_class.return_value = mock_client
         mock_client.delete_file.return_value = {"message": "File deleted"}
         
-        handler = DeleteFileToolHandler()
-        result = handler.run_tool({"filepath": "test.md"})
+        handler = DeleteFileToolHandler(test_config)
+        result = handler.run_tool({"filepath": "test.md", "confirm": True})
         
         mock_client.delete_file.assert_called_once_with("test.md")
         assert len(result) == 1
-        data = json.loads(result[0].text)
-        assert data["message"] == "File deleted"
+        assert "Successfully deleted" in result[0].text
+        assert "test.md" in result[0].text

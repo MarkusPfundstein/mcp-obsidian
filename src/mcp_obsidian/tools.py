@@ -18,14 +18,8 @@ if TYPE_CHECKING:
 api_key = os.getenv("OBSIDIAN_API_KEY", "")
 obsidian_host = os.getenv("OBSIDIAN_HOST", "127.0.0.1")
 
-# Only raise error if we're not in test mode and config is not available
-if api_key == "" and "pytest" not in sys.modules:
-    # Try to import config to see if it's available
-    try:
-        from .config import get_settings
-        get_settings()  # This will raise if config is invalid
-    except Exception:
-        raise ValueError(f"OBSIDIAN_API_KEY environment variable required. Working directory: {os.getcwd()}")
+# Don't validate at import time - let the server handle it when it starts
+# This allows CLI to work even without config set
 
 TOOL_LIST_FILES_IN_VAULT = "obsidian_list_files_in_vault"
 TOOL_LIST_FILES_IN_DIR = "obsidian_list_files_in_dir"
@@ -149,7 +143,7 @@ class GetFileContentsToolHandler(ToolHandler):
         return [
             TextContent(
                 type="text",
-                text=json.dumps(content, indent=2)
+                text=content
             )
         ]
     

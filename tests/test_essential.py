@@ -11,6 +11,7 @@ os.environ["OBSIDIAN_API_KEY"] = "test-api-key"
 
 from mcp_obsidian.obsidian import Obsidian
 from mcp_obsidian import server
+from mcp_obsidian.config import Settings
 from mcp_obsidian.tools import (
     ListFilesInVaultToolHandler,
     ListFilesInDirToolHandler,
@@ -19,6 +20,17 @@ from mcp_obsidian.tools import (
 
 class TestEssentialFunctionality:
     """Tests for essential functionality that must not break."""
+    
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Initialize tool handlers before each test."""
+        # Create a test config
+        test_config = Settings(obsidian_api_key="test-api-key")
+        # Initialize handlers for testing
+        server.initialize_tool_handlers(test_config)
+        yield
+        # Clean up after test
+        server.tool_handlers.clear()
     
     def test_obsidian_client_initialization(self):
         """Test that Obsidian client can be initialized with custom values."""
@@ -36,6 +48,10 @@ class TestEssentialFunctionality:
     
     def test_critical_tools_registered(self):
         """Test that critical tools are registered in the server."""
+        # Re-initialize to ensure tools are registered
+        test_config = Settings(obsidian_api_key="test-api-key")
+        server.initialize_tool_handlers(test_config)
+        
         critical_tools = [
             "obsidian_list_files_in_vault",
             "obsidian_list_files_in_dir",

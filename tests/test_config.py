@@ -45,7 +45,7 @@ class TestSettings:
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValidationError) as exc_info:
                 get_settings()
-            assert "OBSIDIAN_API_KEY" in str(exc_info.value)
+            assert "obsidian_api_key" in str(exc_info.value)
     
     def test_protocol_validation(self):
         """Test that protocol is validated and normalized."""
@@ -56,12 +56,14 @@ class TestSettings:
             settings = get_settings()
             assert settings.obsidian_protocol == "http"
         
+        # Test that invalid protocol raises an error
         with patch.dict(os.environ, {
             "OBSIDIAN_API_KEY": "test-key",
             "OBSIDIAN_PROTOCOL": "invalid"
         }):
-            settings = get_settings()
-            assert settings.obsidian_protocol == "https"  # Defaults to https
+            with pytest.raises(ValidationError) as exc_info:
+                get_settings()
+            assert "Protocol must be 'http' or 'https'" in str(exc_info.value)
     
     def test_port_validation(self):
         """Test that port is validated."""
