@@ -1,6 +1,6 @@
 """Command-line interface for mcp-obsidian.
 
-Separated from package __init__ to avoid side effects on import. This module
+This module
 contains the Typer application and configuration resolution logic. The server
 itself is only imported at runtime after environment variables are populated.
 """

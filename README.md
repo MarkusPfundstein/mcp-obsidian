@@ -74,6 +74,7 @@ Instead of setting any environment variables you can now simply supply a path
 to your vault (or directly to the plugin config directory / its `data.json`).
 The server will parse the Obsidian Local REST API plugin configuration and
 populate the API key, enabled protocol and corresponding port automatically.
+Note that the server plugin for Obsidian is still required.
 
 Minimal examples (no env needed):
 
@@ -88,9 +89,8 @@ Claude Desktop config using just a folder path:
 {
   "mcpServers": {
     "mcp-obsidian": {
-      "command": "uv",
+      "command": "uvx",
       "args": [
-        "run",
         "mcp-obsidian",
         "/absolute/path/to/MyVault"
       ]
@@ -130,7 +130,7 @@ You need the Obsidian REST API community plugin running: https://github.com/codd
 
 Install and enable it in the settings and copy the api key.
 
-### New: Start by Vault Path (Auto Configuration)
+### Start by Vault Path (Auto Configuration)
 
 You can now launch the server by simply pointing at your vault (or directly to the plugin config directory / data.json). The server will read the Local REST API plugin configuration and auto-set API key, ports and protocol.
 
