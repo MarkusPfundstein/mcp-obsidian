@@ -68,6 +68,58 @@ Note:
 - Default port is 27124 if not specified
 - Default host is 127.0.0.1 if not specified
 
+### (Recommended) Folder Path Instead of Manual ENV
+
+Instead of setting any environment variables you can now simply supply a path
+to your vault (or directly to the plugin config directory / its `data.json`).
+The server will parse the Obsidian Local REST API plugin configuration and
+populate the API key, enabled protocol and corresponding port automatically.
+
+Minimal examples (no env needed):
+
+```
+mcp-obsidian /path/to/MyVault
+mcp-obsidian /path/to/MyVault --show-config
+```
+
+Claude Desktop config using just a folder path:
+
+```jsonc
+{
+  "mcpServers": {
+    "mcp-obsidian": {
+      "command": "uv",
+      "args": [
+        "run",
+        "mcp-obsidian",
+        "/absolute/path/to/MyVault"
+      ]
+    }
+  }
+}
+```
+
+If both HTTP and HTTPS are enabled in the plugin and you want HTTP:
+
+```
+mcp-obsidian /path/to/MyVault --protocol http
+```
+
+Accepted path forms (all equivalent):
+
+```
+/path/to/MyVault
+/path/to/MyVault/.obsidian
+/path/to/MyVault/.obsidian/plugins
+/path/to/MyVault/.obsidian/plugins/obsidian-local-rest-api
+/path/to/MyVault/.obsidian/plugins/obsidian-local-rest-api/data.json
+```
+
+Precedence with folder path: existing `.env` / process env values are loaded
+first, CLI overrides next, then the plugin configuration (for API key and
+enabled protocol/ports). If the plugin enables only one protocol it will
+override any conflicting choice.
+
 ## Quickstart
 
 ### Install
