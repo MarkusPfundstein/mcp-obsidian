@@ -1,9 +1,11 @@
-from . import server
-import asyncio
+"""Public package exports for mcp-obsidian.
 
-def main():
-    """Main entry point for the package."""
-    asyncio.run(server.main())
+The CLI now lives in ``mcp_obsidian.cli`` to avoid side effects on import.
+``pyproject.toml`` script entry can continue referencing ``mcp_obsidian:main``.
+"""
 
-# Optionally expose other important items at package level
-__all__ = ['main', 'server']
+from __future__ import annotations
+
+from .cli import main  # re-export
+
+__all__ = ["main"]

@@ -60,10 +60,65 @@ OBSIDIAN_HOST=your_obsidian_host
 OBSIDIAN_PORT=your_obsidian_port
 ```
 
+Alternatively, you can use the following button:
+[![Add Obsidian MCP to VS Code](https://img.shields.io/badge/Add_Obsidian_MCP-VS_Code-purple?logo=visualstudiocode)](vscode://obsidian.mcp/addServer?config=eyJpZCI6Im1jcC1vYnNpZGlhbiIsIm5hbWUiOiJPYnNpZGlhbiBNQ1AgU2VydmVyIiwiY29tbWFuZCI6InV2eCIsImFyZ3MiOlsibWNwLW9ic2lkaWFuIl0sImVudiI6eyJPQlNJRElBTl9BUElfS0VZIjoiWU9VUl9BUElfS0VZX0dPRVNfSEVSRSIsIk9CU0lESUFOX0hPU1QiOiIxMjcuMC4wLjEiLCJPQlNJRElBTl9QT1JUIjoiMjcxMjQifSwidHlwZSI6InN0ZGlvIn0=)
+
 Note:
 - You can find the API key in the Obsidian plugin config
 - Default port is 27124 if not specified
 - Default host is 127.0.0.1 if not specified
+
+### (Recommended) Folder Path Instead of Manual ENV
+
+Instead of setting any environment variables you can now simply supply a path
+to your vault (or directly to the plugin config directory / its `data.json`).
+The server will parse the Obsidian Local REST API plugin configuration and
+populate the API key, enabled protocol and corresponding port automatically.
+Note that the server plugin for Obsidian is still required.
+
+Minimal examples (no env needed):
+
+```
+mcp-obsidian /path/to/MyVault
+mcp-obsidian /path/to/MyVault --show-config
+```
+
+Claude Desktop config using just a folder path:
+
+```jsonc
+{
+  "mcpServers": {
+    "mcp-obsidian": {
+      "command": "uvx",
+      "args": [
+        "mcp-obsidian",
+        "/absolute/path/to/MyVault"
+      ]
+    }
+  }
+}
+```
+
+If both HTTP and HTTPS are enabled in the plugin and you want HTTP:
+
+```
+mcp-obsidian /path/to/MyVault --protocol http
+```
+
+Accepted path forms (all equivalent):
+
+```
+/path/to/MyVault
+/path/to/MyVault/.obsidian
+/path/to/MyVault/.obsidian/plugins
+/path/to/MyVault/.obsidian/plugins/obsidian-local-rest-api
+/path/to/MyVault/.obsidian/plugins/obsidian-local-rest-api/data.json
+```
+
+Precedence with folder path: existing `.env` / process env values are loaded
+first, CLI overrides next, then the plugin configuration (for API key and
+enabled protocol/ports). If the plugin enables only one protocol it will
+override any conflicting choice.
 
 ## Quickstart
 
@@ -74,6 +129,34 @@ Note:
 You need the Obsidian REST API community plugin running: https://github.com/coddingtonbear/obsidian-local-rest-api
 
 Install and enable it in the settings and copy the api key.
+
+### Start by Vault Path (Auto Configuration)
+
+You can now launch the server by simply pointing at your vault (or directly to the plugin config directory / data.json). The server will read the Local REST API plugin configuration and auto-set API key, ports and protocol.
+
+Examples:
+
+```
+mcp-obsidian /path/to/MyVault
+mcp-obsidian /path/to/MyVault/.obsidian
+mcp-obsidian /path/to/MyVault/.obsidian/plugins
+mcp-obsidian /path/to/MyVault/.obsidian/plugins/obsidian-local-rest-api
+mcp-obsidian /path/to/MyVault/.obsidian/plugins/obsidian-local-rest-api/data.json
+```
+
+Force protocol when the plugin enables both:
+
+```
+mcp-obsidian /path/to/MyVault --protocol http
+```
+
+Show the resolved configuration without starting the server:
+
+```
+mcp-obsidian /path/to/MyVault --show-config
+```
+
+Precedence order (highest last): `.env / env` -> CLI options -> plugin configuration (api key & enabled ports). If the plugin only enables one protocol it will override any CLI or env choice.
 
 #### Claude Desktop
 
