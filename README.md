@@ -65,6 +65,21 @@ Note:
 - Default port is 27124 if not specified
 - Default host is 127.0.0.1 if not specified
 
+### SSE transport
+
+By default the server communicates over stdio so it can plug directly into Claude Desktop.
+To expose it over HTTP using Server-Sent Events set `MCP_TRANSPORT=sse` when launching
+the process. Optional variables let you adjust the endpoints:
+
+- `MCP_SSE_HOST` (default `127.0.0.1`)
+- `MCP_SSE_PORT` (default `8000`)
+- `MCP_SSE_PATH` (default `/sse`)
+- `MCP_SSE_MESSAGES_PATH` (default `/messages`)
+- `MCP_SSE_DEBUG` to enable Starlette debug logging when set to `1`, `true`, `yes`, or `on`
+
+When running in SSE mode the server exposes two routes: `MCP_SSE_PATH` for the SSE stream
+and `MCP_SSE_MESSAGES_PATH` for inbound client messages.
+
 ## Quickstart
 
 ### Install
