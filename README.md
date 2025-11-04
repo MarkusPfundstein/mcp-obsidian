@@ -65,6 +65,68 @@ Note:
 - Default port is 27124 if not specified
 - Default host is 127.0.0.1 if not specified
 
+### MCP Transport
+
+The server uses stdio transport by default. To expose it over HTTP, choose one of the HTTP-capable transports via either
+command-line arguments or environment variables:
+
+- Environment: set `MCP_TRANSPORT=streamable-http` (recommended) or `MCP_TRANSPORT=http`. You can also configure
+  `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_ROOT_PATH`, and `MCP_HTTP_ALLOW_ORIGINS` (comma-separated) for advanced setups.
+- Command line: pass `--transport streamable-http` (or `--transport http`) when launching, together with optional
+  `--http-host`, `--http-port`, `--http-root-path`, and repeated `--http-allow-origins` flags.
+
+#### Transport options
+
+**Streamable HTTP (`--transport streamable-http`)**
+  - Start the server with:
+    ```bash
+    uv run mcp-obsidian --transport streamable-http
+    ```
+  - Exposes a single endpoint at `http://<host>:<port>/mcp` that handles session negotiation, JSON-RPC POSTs, and Server-Sent
+    Events (SSE) streaming on the same path. This keeps sessions alive, supports resumability, and matches FastMCP’s latest
+    transport semantics.
+  - Works great with `mcp-remote`:
+    ```json
+    {
+      "obsidian": {
+        "command": "/usr/local/bin/npx",
+        "args": [
+          "-y",
+          "mcp-remote",
+          "http://localhost:8800/mcp",
+          "--allow-http"
+        ]
+      }
+    }
+    ```
+
+**SSE + POST (`--transport http`)**
+  - Start the server with:
+    ```bash
+    uv run mcp-obsidian --transport http
+    ```
+  - Exposes the classic pair of endpoints:
+    - `http://<host>:<port>/sse` for the outbound SSE stream.
+    - `http://<host>:<port>/messages/` where clients POST JSON-RPC requests (requests include a session ID provided by the SSE
+      stream).
+  - Example `mcp-remote` configuration:
+    ```json
+    {
+      "obsidian": {
+        "command": "/usr/local/bin/npx",
+        "args": [
+          "-y",
+          "mcp-remote",
+          "http://localhost:8800/sse",
+          "--allow-http"
+        ]
+      }
+    }
+    ```
+
+When running over HTTP, ensure the host/port are reachable by your client. Streamable HTTP requires an `mcp` installation that
+includes streamable transport support—if it is missing, the server now reports a clear error.
+
 ## Quickstart
 
 ### Install
