@@ -67,7 +67,7 @@ Note:
 
 ### MCP Transport
 
-The server uses stdio transport by default. To expose it over HTTP instead, set the transport via either
+The server uses stdio transport by default. To expose it over HTTP, choose one of the HTTP-capable transports via either
 command-line arguments or environment variables:
 
 - Environment: set `MCP_TRANSPORT=streamable-http` (recommended) or `MCP_TRANSPORT=http`. You can also configure
@@ -75,9 +75,57 @@ command-line arguments or environment variables:
 - Command line: pass `--transport streamable-http` (or `--transport http`) when launching, together with optional
   `--http-host`, `--http-port`, `--http-root-path`, and repeated `--http-allow-origins` flags.
 
-When running over HTTP, remember to install and expose the server on a host/port reachable by your client. Streamable HTTP
-serves requests on the `/mcp` path; SSE mode exposes `/sse` (with client messages posted to `/messages/`). Streamable HTTP
-requires a build of `mcp` that includes streamable transport support—if it is missing the server now provides a clear error.
+#### Transport options
+
+**Streamable HTTP (`--transport streamable-http`)**
+  - Start the server with:
+    ```bash
+    uv run mcp-obsidian --transport streamable-http
+    ```
+  - Exposes a single endpoint at `http://<host>:<port>/mcp` that handles session negotiation, JSON-RPC POSTs, and Server-Sent
+    Events (SSE) streaming on the same path. This keeps sessions alive, supports resumability, and matches FastMCP’s latest
+    transport semantics.
+  - Works great with `mcp-remote`:
+    ```json
+    {
+      "obsidian": {
+        "command": "/usr/local/bin/npx",
+        "args": [
+          "-y",
+          "mcp-remote",
+          "http://localhost:8800/mcp",
+          "--allow-http"
+        ]
+      }
+    }
+    ```
+
+**SSE + POST (`--transport http`)**
+  - Start the server with:
+    ```bash
+    uv run mcp-obsidian --transport http
+    ```
+  - Exposes the classic pair of endpoints:
+    - `http://<host>:<port>/sse` for the outbound SSE stream.
+    - `http://<host>:<port>/messages/` where clients POST JSON-RPC requests (requests include a session ID provided by the SSE
+      stream).
+  - Example `mcp-remote` configuration:
+    ```json
+    {
+      "obsidian": {
+        "command": "/usr/local/bin/npx",
+        "args": [
+          "-y",
+          "mcp-remote",
+          "http://localhost:8800/sse",
+          "--allow-http"
+        ]
+      }
+    }
+    ```
+
+When running over HTTP, ensure the host/port are reachable by your client. Streamable HTTP requires an `mcp` installation that
+includes streamable transport support—if it is missing, the server now reports a clear error.
 
 ## Quickstart
 
