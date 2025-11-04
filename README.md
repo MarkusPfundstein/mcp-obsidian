@@ -65,6 +65,20 @@ Note:
 - Default port is 27124 if not specified
 - Default host is 127.0.0.1 if not specified
 
+### MCP Transport
+
+The server uses stdio transport by default. To expose it over HTTP instead, set the transport via either
+command-line arguments or environment variables:
+
+- Environment: set `MCP_TRANSPORT=streamable-http` (recommended) or `MCP_TRANSPORT=http`. You can also configure
+  `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_ROOT_PATH`, and `MCP_HTTP_ALLOW_ORIGINS` (comma-separated) for advanced setups.
+- Command line: pass `--transport streamable-http` (or `--transport http`) when launching, together with optional
+  `--http-host`, `--http-port`, `--http-root-path`, and repeated `--http-allow-origins` flags.
+
+When running over HTTP, remember to install and expose the server on a host/port reachable by your client. Streamable HTTP
+serves requests on the `/mcp` path; SSE mode exposes `/sse` (with client messages posted to `/messages/`). Streamable HTTP
+requires a build of `mcp` that includes streamable transport support—if it is missing the server now provides a clear error.
+
 ## Quickstart
 
 ### Install
