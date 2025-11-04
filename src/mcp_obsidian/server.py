@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import logging
 import os
 from collections.abc import Sequence
@@ -311,16 +312,19 @@ async def main(argv: Sequence[str] | None = None):
     args = _parse_args(argv)
     transport = (args.transport or os.getenv("MCP_TRANSPORT", "stdio")).lower()
 
-    if transport in {"http", "streamable-http"}:
-        http_options = _resolve_http_options(args)
-        await _run_http_transport(
-            transport=transport,
-            host=http_options["host"],
-            port=http_options["port"],
-            root_path=http_options["root_path"],
-            allowed_origins=http_options["allowed_origins"],
-        )
-    elif transport == "stdio":
-        await _run_stdio_transport()
-    else:
-        raise ValueError(f"Unsupported transport '{transport}'. Use 'stdio', 'http', or 'streamable-http'.")
+    try:
+        if transport in {"http", "streamable-http"}:
+            http_options = _resolve_http_options(args)
+            await _run_http_transport(
+                transport=transport,
+                host=http_options["host"],
+                port=http_options["port"],
+                root_path=http_options["root_path"],
+                allowed_origins=http_options["allowed_origins"],
+            )
+        elif transport == "stdio":
+            await _run_stdio_transport()
+        else:
+            raise ValueError(f"Unsupported transport '{transport}'. Use 'stdio', 'http', or 'streamable-http'.")
+    except asyncio.CancelledError:
+        logger.info("Shutdown requested, cancelling outstanding tasks.")
