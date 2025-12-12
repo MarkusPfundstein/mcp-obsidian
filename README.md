@@ -17,6 +17,7 @@ The server implements multiple tools to interact with Obsidian:
 - patch_content: Insert content into an existing note relative to a heading, block reference, or frontmatter field.
 - append_content: Append content to a new or existing file in the vault.
 - delete_file: Delete a file or directory from your vault.
+- journal_entry: (Optional) Create reflective journal entries with structured metadata for capturing decisions, learnings, and insights during agent workflows.
 
 ### Example prompts
 
@@ -64,6 +65,101 @@ Note:
 - You can find the API key in the Obsidian plugin config
 - Default port is 27124 if not specified
 - Default host is 127.0.0.1 if not specified
+- **IMPORTANT**: When using file paths (like `--env-file` or `OBSIDIAN_SSL_CERT_PATH`), always use full absolute paths like `/Users/username/...` instead of `~/...` - tilde expansion may not work correctly in all contexts
+
+### Optional: Custom SSL Certificate
+
+By default, SSL certificate verification is disabled (`verify=False`). To use a custom SSL certificate for the Obsidian REST API connection without adding it to your system keychain, you have two options:
+
+**Option 1: Base64-encoded certificate (recommended)**
+
+Download the certificate from your Obsidian Local REST API plugin, encode it as base64, and provide it via environment variable:
+
+```bash
+# Encode your certificate
+base64 -i /path/to/cert.pem | tr -d '\n' > cert.base64
+
+# Add to your MCP configuration
+{
+  "env": {
+    "OBSIDIAN_API_KEY": "<your_api_key_here>",
+    "OBSIDIAN_HOST": "<your_obsidian_host>",
+    "OBSIDIAN_PORT": "<your_obsidian_port>",
+    "OBSIDIAN_SSL_CERT_BASE64": "<contents_of_cert.base64>"
+  }
+}
+```
+
+**Option 2: Path to certificate file**
+
+Alternatively, provide the path to your certificate file:
+
+```json
+{
+  "env": {
+    "OBSIDIAN_API_KEY": "<your_api_key_here>",
+    "OBSIDIAN_HOST": "<your_obsidian_host>",
+    "OBSIDIAN_PORT": "<your_obsidian_port>",
+    "OBSIDIAN_SSL_CERT_PATH": "/path/to/cert.pem"
+  }
+}
+```
+
+**Why use this?** Avoids having to add the certificate to your system keychain and mark it as globally trusted. The certificate is only used for this specific connection.
+
+**Certificate source:** Download the certificate from the Obsidian Local REST API plugin settings (usually available at `https://127.0.0.1:27124/` in your browser - look for the certificate download or export option).
+
+### Optional: Journaling Feature
+
+The journaling tool automates the mechanical parts of logging (timestamps, formatting, file organization) so LLMs can focus on content. Gated behind a feature flag because it requires thoughtful prompting to be valuable.
+
+**To enable:** Add `OBSIDIAN_ENABLE_JOURNALING=true` to your environment variables.
+
+**Why use this?** Helps with rubber duck debugging, cross-session continuity, and post-project synthesis. See [JOURNALING.md](JOURNALING.md) for detailed guidance on getting value from agent journaling.
+
+### Optional: Disable Simple Search
+
+For large vaults (many files or large files), the simple search can return excessive context that overwhelms token limits. Use this to disable simple search and rely on complex search instead.
+
+**To disable:** Add `OBSIDIAN_DISABLE_SIMPLE_SEARCH=true` to your environment variables.
+
+**Example configuration:**
+```json
+{
+  "env": {
+    "OBSIDIAN_API_KEY": "<your_api_key_here>",
+    "OBSIDIAN_HOST": "<your_obsidian_host>",
+    "OBSIDIAN_PORT": "<your_obsidian_port>",
+    "OBSIDIAN_DISABLE_SIMPLE_SEARCH": "true"
+  }
+}
+```
+
+### Optional: Debug Logging
+
+Enable detailed debug logging to troubleshoot connection issues, SSL certificate problems, or API errors. Debug logs include:
+- Environment configuration and SSL cert setup
+- MCP tool calls (requests and responses)
+- API requests and detailed error messages
+- Full stack traces for errors
+
+**To enable:** Add `OBSIDIAN_DEBUG_LOG=/path/to/debug.log` to your environment variables.
+
+**Example configuration:**
+```json
+{
+  "env": {
+    "OBSIDIAN_API_KEY": "<your_api_key_here>",
+    "OBSIDIAN_HOST": "<your_obsidian_host>",
+    "OBSIDIAN_PORT": "<your_obsidian_port>",
+    "OBSIDIAN_DEBUG_LOG": "/tmp/mcp-obsidian-debug.log"
+  }
+}
+```
+
+**Why use this?** MCP servers use stdio for communication, making it difficult to debug connection or SSL issues. This feature logs all diagnostic information to a separate file without interfering with the MCP protocol.
+
+**Tip:** Use `tail -f /tmp/mcp-obsidian-debug.log` in a separate terminal to watch logs in real-time.
 
 ## Quickstart
 

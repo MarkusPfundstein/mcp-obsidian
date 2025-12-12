@@ -8,6 +8,7 @@ from mcp.types import (
 import json
 import os
 from . import obsidian
+from . import journaling
 
 api_key = os.getenv("OBSIDIAN_API_KEY", "")
 obsidian_host = os.getenv("OBSIDIAN_HOST", "127.0.0.1")
@@ -255,12 +256,12 @@ class PatchContentToolHandler(ToolHandler):
                        "enum": ["heading", "block", "frontmatter"]
                    },
                    "target": {
-                       "type": "string", 
-                       "description": "Target identifier (heading path, block reference, or frontmatter field)"
+                       "type": "string",
+                       "description": "Target identifier. FOR HEADINGS - READ FILE FIRST, then build path: (1) ALWAYS start with the TOP LEVEL h1 heading (the '# ' heading). (2) Use '::' separator between each level. (3) Include EVERY heading level from h1 down to target. EXAMPLE: File has '# Top Level' then '## Section A' then '### Subsection A1'. To target Subsection A1, you MUST use 'Top Level::Section A::Subsection A1'. WRONG: 'Subsection A1' (missing parents). WRONG: 'Section A::Subsection A1' (missing h1). CORRECT: 'Top Level::Section A::Subsection A1' (complete path from h1). For block references use '^block-id'. For frontmatter use field name."
                    },
                    "content": {
                        "type": "string",
-                       "description": "Content to insert"
+                       "description": "Content to insert. MANDATORY: ALWAYS end with '\\n' newline character. When operation='replace' with target_type='heading': (1) Do NOT include heading markup (###) - only content. (2) MUST end with '\\n' or next heading will break. EXAMPLES: WRONG: 'New content' (no newline). WRONG: 'New content here' (no newline). CORRECT: 'New content\\n'. CORRECT: 'New content here\\n'. CORRECT: 'Line 1\\nLine 2\\n'. The trailing \\n is NOT optional - it prevents document corruption."
                    }
                },
                "required": ["filepath", "operation", "target_type", "target", "content"]
@@ -616,7 +617,7 @@ class RecentChangesToolHandler(ToolHandler):
         limit = args.get("limit", 10)
         if not isinstance(limit, int) or limit < 1:
             raise RuntimeError(f"Invalid limit: {limit}. Must be a positive integer")
-            
+
         days = args.get("days", 90)
         if not isinstance(days, int) or days < 1:
             raise RuntimeError(f"Invalid days: {days}. Must be a positive integer")
@@ -628,5 +629,95 @@ class RecentChangesToolHandler(ToolHandler):
             TextContent(
                 type="text",
                 text=json.dumps(results, indent=2)
+            )
+        ]
+
+class JournalEntryToolHandler(ToolHandler):
+    def __init__(self):
+        super().__init__("obsidian_journal_entry")
+
+    def get_tool_description(self):
+        return Tool(
+            name=self.name,
+            description="Create a reflective journal entry with structured metadata. Use for capturing decisions, learnings, feelings, mistakes, and insights during work. Automatically handles timestamps, formatting, and file organization.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "The reflective journal entry content. Capture the thinking process, not just actions. Examples: 'Chose A over B because...', 'This feels overly complex', 'Discovered that X doesn't support Y'."
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Type of entry (free-form string). Common types: 'decision', 'learning', 'problem', 'insight', 'mistake', 'feeling', 'frustration', 'doubt'. Use whatever best describes the entry."
+                    },
+                    "project_dir": {
+                        "type": "string",
+                        "description": "Optional Obsidian project directory path (e.g., 'projects/session-profiles'). If provided, entry goes in {project_dir}/work-logs/{YYYY-MM-DD}/{agent}.log. If omitted, entry goes in work-logs/{YYYY-MM-DD}/{agent}.log at vault root."
+                    },
+                    "agent": {
+                        "type": "string",
+                        "description": "Agent name (e.g., 'main', 'architect', 'researcher'). Defaults to 'main' if not provided. Used as the log filename.",
+                        "default": "main"
+                    },
+                    "confidence": {
+                        "type": "string",
+                        "description": "Confidence level for decisions: 'high', 'medium', or 'low'. Optional.",
+                        "enum": ["high", "medium", "low"]
+                    },
+                    "alternatives": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Other approaches that were considered. Optional. Example: ['Redis', 'in-memory', 'file-based']"
+                    }
+                },
+                "required": ["content", "type"]
+            }
+        )
+
+    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+        # Extract parameters
+        content = args.get("content", "")
+        entry_type = args.get("type", "")
+        project_dir = args.get("project_dir")
+        agent = args.get("agent", "main")
+        confidence = args.get("confidence")
+        alternatives = args.get("alternatives")
+
+        # Validate parameters
+        try:
+            journaling.validate_parameters(content, entry_type, agent, confidence)
+        except ValueError as e:
+            raise RuntimeError(str(e))
+
+        # Construct the file path
+        filepath = journaling.construct_journal_path(project_dir, agent)
+
+        # Format the entry
+        entry = journaling.format_journal_entry(
+            content=content,
+            entry_type=entry_type,
+            alternatives=alternatives,
+            confidence=confidence
+        )
+
+        # Write to file using append_content
+        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+
+        try:
+            api.append_content(filepath, entry)
+        except Exception as e:
+            raise RuntimeError(f"Failed to write journal entry: {str(e)}")
+
+        # Return success message with file path
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+        return [
+            TextContent(
+                type="text",
+                text=f"Journal entry written to {filepath} at {timestamp}"
             )
         ]

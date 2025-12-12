@@ -1,11 +1,16 @@
 import requests
 import urllib.parse
 import os
+import base64
+import tempfile
+import logging
 from typing import Any
+
+logger = logging.getLogger("mcp-obsidian")
 
 class Obsidian():
     def __init__(
-            self, 
+            self,
             api_key: str,
             protocol: str = os.getenv('OBSIDIAN_PROTOCOL', 'https').lower(),
             host: str = str(os.getenv('OBSIDIAN_HOST', '127.0.0.1')),
@@ -13,7 +18,7 @@ class Obsidian():
             verify_ssl: bool = False,
         ):
         self.api_key = api_key
-        
+
         if protocol == 'http':
             self.protocol = 'http'
         else:
@@ -21,8 +26,53 @@ class Obsidian():
 
         self.host = host
         self.port = port
-        self.verify_ssl = verify_ssl
+
+        # Handle SSL certificate configuration
+        self.temp_cert_file = None
+        cert_base64 = os.getenv("OBSIDIAN_SSL_CERT_BASE64")
+        cert_path = os.getenv("OBSIDIAN_SSL_CERT_PATH")
+
+        logger.debug(f"SSL cert config: base64={'set' if cert_base64 else 'not set'}, path={cert_path}")
+
+        if cert_base64:
+            # Decode base64 certificate and write to temporary file
+            logger.debug("Using base64-encoded certificate")
+            try:
+                cert_data = base64.b64decode(cert_base64)
+                # Create a temporary file that persists
+                temp_file = tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pem')
+                temp_file.write(cert_data)
+                temp_file.close()
+                self.temp_cert_file = temp_file.name
+                self.verify_ssl = temp_file.name
+                logger.debug(f"Base64 cert decoded and written to: {self.temp_cert_file}")
+            except Exception as e:
+                logger.error(f"Failed to decode OBSIDIAN_SSL_CERT_BASE64: {str(e)}", exc_info=True)
+                raise ValueError(f"Failed to decode OBSIDIAN_SSL_CERT_BASE64: {str(e)}")
+        elif cert_path:
+            # Validate certificate file exists
+            logger.debug(f"Using certificate file path: {cert_path}")
+            if os.path.exists(cert_path):
+                self.verify_ssl = cert_path
+                logger.debug(f"Certificate file found and will be used for SSL verification")
+            else:
+                logger.error(f"SSL certificate file not found: {cert_path}")
+                raise FileNotFoundError(f"SSL certificate file not found: {cert_path}")
+        else:
+            # No certificate provided, use default behavior
+            self.verify_ssl = verify_ssl
+            logger.debug(f"No SSL certificate configured, verify_ssl={verify_ssl}")
+
         self.timeout = (3, 6)
+
+    def __del__(self):
+        """Clean up temporary certificate file if it exists."""
+        if self.temp_cert_file and os.path.exists(self.temp_cert_file):
+            try:
+                os.unlink(self.temp_cert_file)
+            except Exception:
+                # Silently ignore cleanup errors
+                pass
 
     def get_base_url(self) -> str:
         return f'{self.protocol}://{self.host}:{self.port}'
@@ -35,22 +85,30 @@ class Obsidian():
 
     def _safe_call(self, f) -> Any:
         try:
-            return f()
+            result = f()
+            logger.debug(f"API request successful")
+            return result
         except requests.HTTPError as e:
             error_data = e.response.json() if e.response.content else {}
-            code = error_data.get('errorCode', -1) 
+            code = error_data.get('errorCode', -1)
             message = error_data.get('message', '<unknown>')
+            logger.error(f"HTTP Error {code}: {message}, status_code={e.response.status_code}")
             raise Exception(f"Error {code}: {message}")
+        except requests.exceptions.SSLError as e:
+            logger.error(f"SSL Error: {str(e)}", exc_info=True)
+            raise Exception(f"SSL Error: {str(e)}")
         except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed: {str(e)}", exc_info=True)
             raise Exception(f"Request failed: {str(e)}")
 
     def list_files_in_vault(self) -> Any:
         url = f"{self.get_base_url()}/vault/"
-        
+
         def call_fn():
+            logger.debug(f"GET {url} (verify_ssl={self.verify_ssl})")
             response = requests.get(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
             response.raise_for_status()
-            
+
             return response.json()['files']
 
         return self._safe_call(call_fn)
@@ -58,22 +116,24 @@ class Obsidian():
         
     def list_files_in_dir(self, dirpath: str) -> Any:
         url = f"{self.get_base_url()}/vault/{dirpath}/"
-        
+
         def call_fn():
+            logger.debug(f"GET {url} (verify_ssl={self.verify_ssl})")
             response = requests.get(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
             response.raise_for_status()
-            
+
             return response.json()['files']
 
         return self._safe_call(call_fn)
 
     def get_file_contents(self, filepath: str) -> Any:
         url = f"{self.get_base_url()}/vault/{filepath}"
-    
+
         def call_fn():
+            logger.debug(f"GET {url} (verify_ssl={self.verify_ssl})")
             response = requests.get(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
             response.raise_for_status()
-            
+
             return response.text
 
         return self._safe_call(call_fn)
