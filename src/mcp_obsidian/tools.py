@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from mcp.types import (
     Tool,
+    ToolAnnotations,
     TextContent,
     ImageContent,
     EmbeddedResource,
@@ -41,6 +42,10 @@ class ListFilesInVaultToolHandler(ToolHandler):
                 "properties": {},
                 "required": []
             },
+            annotations=ToolAnnotations(
+                title="List Files in Vault",
+                readOnlyHint=True,
+            ),
         )
 
     def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -72,7 +77,11 @@ class ListFilesInDirToolHandler(ToolHandler):
                     },
                 },
                 "required": ["dirpath"]
-            }
+            },
+            annotations=ToolAnnotations(
+                title="List Files in Directory",
+                readOnlyHint=True,
+            ),
         )
 
     def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -109,7 +118,11 @@ class GetFileContentsToolHandler(ToolHandler):
                     },
                 },
                 "required": ["filepath"]
-            }
+            },
+            annotations=ToolAnnotations(
+                title="Get File Contents",
+                readOnlyHint=True,
+            ),
         )
 
     def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -134,7 +147,7 @@ class SearchToolHandler(ToolHandler):
     def get_tool_description(self):
         return Tool(
             name=self.name,
-            description="""Simple search for documents matching a specified text query across all files in the vault. 
+            description="""Simple search for documents matching a specified text query across all files in the vault.
             Use this tool when you want to do a simple text search""",
             inputSchema={
                 "type": "object",
@@ -150,7 +163,11 @@ class SearchToolHandler(ToolHandler):
                     }
                 },
                 "required": ["query"]
-            }
+            },
+            annotations=ToolAnnotations(
+                title="Simple Search",
+                readOnlyHint=True,
+            ),
         )
 
     def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -211,7 +228,11 @@ class AppendContentToolHandler(ToolHandler):
                    }
                },
                "required": ["filepath", "content"]
-           }
+           },
+           annotations=ToolAnnotations(
+               title="Append Content",
+               destructiveHint=True,
+           ),
        )
 
    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -255,7 +276,7 @@ class PatchContentToolHandler(ToolHandler):
                        "enum": ["heading", "block", "frontmatter"]
                    },
                    "target": {
-                       "type": "string", 
+                       "type": "string",
                        "description": "Target identifier (heading path, block reference, or frontmatter field)"
                    },
                    "content": {
@@ -264,7 +285,11 @@ class PatchContentToolHandler(ToolHandler):
                    }
                },
                "required": ["filepath", "operation", "target_type", "target", "content"]
-           }
+           },
+           annotations=ToolAnnotations(
+               title="Patch Content",
+               destructiveHint=True,
+           ),
        )
 
    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -309,7 +334,11 @@ class PutContentToolHandler(ToolHandler):
                    }
                },
                "required": ["filepath", "content"]
-           }
+           },
+           annotations=ToolAnnotations(
+               title="Put Content",
+               destructiveHint=True,
+           ),
        )
 
    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -350,7 +379,11 @@ class DeleteFileToolHandler(ToolHandler):
                    }
                },
                "required": ["filepath", "confirm"]
-           }
+           },
+           annotations=ToolAnnotations(
+               title="Delete File",
+               destructiveHint=True,
+           ),
        )
 
    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -377,7 +410,7 @@ class ComplexSearchToolHandler(ToolHandler):
    def get_tool_description(self):
        return Tool(
            name=self.name,
-           description="""Complex search for documents using a JsonLogic query. 
+           description="""Complex search for documents using a JsonLogic query.
            Supports standard JsonLogic operators plus 'glob' and 'regexp' for pattern matching. Results must be non-falsy.
 
            Use this tool when you want to do a complex search, e.g. for all documents with certain tags etc.
@@ -417,7 +450,11 @@ class ComplexSearchToolHandler(ToolHandler):
                    }
                },
                "required": ["query"]
-           }
+           },
+           annotations=ToolAnnotations(
+               title="Complex Search",
+               readOnlyHint=True,
+           ),
        )
 
    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -456,7 +493,11 @@ class BatchGetFileContentsToolHandler(ToolHandler):
                     },
                 },
                 "required": ["filepaths"]
-            }
+            },
+            annotations=ToolAnnotations(
+                title="Batch Get File Contents",
+                readOnlyHint=True,
+            ),
         )
 
     def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -497,7 +538,11 @@ class PeriodicNotesToolHandler(ToolHandler):
                     }
                 },
                 "required": ["period"]
-            }
+            },
+            annotations=ToolAnnotations(
+                title="Get Periodic Note",
+                readOnlyHint=True,
+            ),
         )
 
     def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -554,7 +599,11 @@ class RecentPeriodicNotesToolHandler(ToolHandler):
                     }
                 },
                 "required": ["period"]
-            }
+            },
+            annotations=ToolAnnotations(
+                title="Get Recent Periodic Notes",
+                readOnlyHint=True,
+            ),
         )
 
     def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
@@ -609,7 +658,11 @@ class RecentChangesToolHandler(ToolHandler):
                         "default": 90
                     }
                 }
-            }
+            },
+            annotations=ToolAnnotations(
+                title="Get Recent Changes",
+                readOnlyHint=True,
+            ),
         )
 
     def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
