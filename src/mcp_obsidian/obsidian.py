@@ -119,8 +119,8 @@ class Obsidian():
         def call_fn():
             response = requests.post(
                 url, 
-                headers=self._get_headers() | {'Content-Type': 'text/markdown'}, 
-                data=content,
+                headers=self._get_headers() | {'Content-Type': 'text/markdown; charset=utf-8'}, 
+                data=content.encode('utf-8'),
                 verify=self.verify_ssl,
                 timeout=self.timeout
             )
@@ -133,14 +133,14 @@ class Obsidian():
         url = f"{self.get_base_url()}/vault/{filepath}"
         
         headers = self._get_headers() | {
-            'Content-Type': 'text/markdown',
+            'Content-Type': 'text/markdown; charset=utf-8',
             'Operation': operation,
             'Target-Type': target_type,
             'Target': urllib.parse.quote(target)
         }
         
         def call_fn():
-            response = requests.patch(url, headers=headers, data=content, verify=self.verify_ssl, timeout=self.timeout)
+            response = requests.patch(url, headers=headers, data=content.encode('utf-8'), verify=self.verify_ssl, timeout=self.timeout)
             response.raise_for_status()
             return None
 
@@ -152,8 +152,8 @@ class Obsidian():
         def call_fn():
             response = requests.put(
                 url, 
-                headers=self._get_headers() | {'Content-Type': 'text/markdown'}, 
-                data=content,
+                headers=self._get_headers() | {'Content-Type': 'text/markdown; charset=utf-8'}, 
+                data=content.encode('utf-8'),
                 verify=self.verify_ssl,
                 timeout=self.timeout
             )

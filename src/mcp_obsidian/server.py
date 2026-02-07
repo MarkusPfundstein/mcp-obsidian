@@ -1,10 +1,17 @@
 import json
 import logging
+import sys
+import io
 from collections.abc import Sequence
 from functools import lru_cache
 from typing import Any
 import os
 from dotenv import load_dotenv
+
+# Force UTF-8 encoding for stdout/stderr on Windows
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 from mcp.server import Server
 from mcp.types import (
     Tool,
