@@ -62,8 +62,8 @@ OBSIDIAN_PORT=your_obsidian_port
 
 Note:
 - You can find the API key in the Obsidian plugin config
-- Default port is 27124 if not specified
 - Default host is 127.0.0.1 if not specified
+- Default port is 27124 if not specified
 
 ## Quickstart
 
