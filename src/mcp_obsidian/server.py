@@ -52,7 +52,7 @@ add_tool_handler(tools.DeleteFileToolHandler())
 add_tool_handler(tools.ComplexSearchToolHandler())
 add_tool_handler(tools.BatchGetFileContentsToolHandler())
 add_tool_handler(tools.PeriodicNotesToolHandler())
-add_tool_handler(tools.RecentPeriodicNotesToolHandler())
+add_tool_handler(tools.PeriodicNoteForDateToolHandler())
 add_tool_handler(tools.RecentChangesToolHandler())
 
 @app.list_tools()
