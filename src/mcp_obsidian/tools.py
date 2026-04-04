@@ -235,7 +235,7 @@ class PatchContentToolHandler(ToolHandler):
    def get_tool_description(self):
        return Tool(
            name=self.name,
-           description="Insert content into an existing note relative to a heading, block reference, or frontmatter field.",
+           description="Insert content into an existing note relative to a heading, block reference, or frontmatter field.\n\nIMPORTANT: For heading targets, you MUST use the fully qualified heading path from the document's root heading using '::' as a delimiter. For example, if the file contains '# My Document' with '## Section A' underneath, use target='My Document::Section A', NOT just 'Section A'. Only top-level (H1) headings can be referenced by name alone. Using a bare sub-heading name will result in error 40080 (invalid-target).",
            inputSchema={
                "type": "object",
                "properties": {
@@ -256,7 +256,7 @@ class PatchContentToolHandler(ToolHandler):
                    },
                    "target": {
                        "type": "string", 
-                       "description": "Target identifier (heading path, block reference, or frontmatter field)"
+                       "description": "Target identifier. For headings: use '::'-delimited path from the root heading (e.g. 'Root Heading::Sub Heading::Sub Sub Heading'). Only top-level H1 headings can be targeted by name alone. For blocks: the block reference ID (without ^). For frontmatter: the field name."
                    },
                    "content": {
                        "type": "string",
