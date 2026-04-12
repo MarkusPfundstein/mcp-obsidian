@@ -235,7 +235,7 @@ class PatchContentToolHandler(ToolHandler):
    def get_tool_description(self):
        return Tool(
            name=self.name,
-           description="Insert content into an existing note relative to a heading, block reference, or frontmatter field.",
+           description="Insert content into an existing note relative to a heading, block reference, or frontmatter field. IMPORTANT: For headings, you must provide the FULL heading path using '::' as separator. Example: if your note has '# Main' with '## Sub' underneath, the target must be 'Main::Sub', not just 'Sub'. For top-level headings, just use the heading text without the '#' symbols.",
            inputSchema={
                "type": "object",
                "properties": {
@@ -256,7 +256,7 @@ class PatchContentToolHandler(ToolHandler):
                    },
                    "target": {
                        "type": "string", 
-                       "description": "Target identifier (heading path, block reference, or frontmatter field)"
+                      "description": "Target identifier. For headings: use full path with '::' delimiter (e.g. 'Parent Heading::Child Heading'). For top-level headings use just the name (e.g. 'My Section'). For blocks: use the block reference ID. For frontmatter: use the field name."
                    },
                    "content": {
                        "type": "string",

@@ -22,7 +22,7 @@ class Obsidian():
         self.host = host
         self.port = port
         self.verify_ssl = verify_ssl
-        self.timeout = (3, 6)
+        self.timeout = (5, 30)
 
     def get_base_url(self) -> str:
         return f'{self.protocol}://{self.host}:{self.port}'
@@ -120,7 +120,7 @@ class Obsidian():
             response = requests.post(
                 url, 
                 headers=self._get_headers() | {'Content-Type': 'text/markdown'}, 
-                data=content,
+                data=content.encode('utf-8'),
                 verify=self.verify_ssl,
                 timeout=self.timeout
             )
@@ -140,7 +140,7 @@ class Obsidian():
         }
         
         def call_fn():
-            response = requests.patch(url, headers=headers, data=content, verify=self.verify_ssl, timeout=self.timeout)
+            response = requests.patch(url, headers=headers, data=content.encode('utf-8'), verify=self.verify_ssl, timeout=self.timeout)
             response.raise_for_status()
             return None
 
