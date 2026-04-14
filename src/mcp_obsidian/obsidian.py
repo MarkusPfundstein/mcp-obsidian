@@ -1,3 +1,4 @@
+import json
 import requests
 import urllib.parse
 import os
@@ -43,6 +44,47 @@ class Obsidian():
             raise Exception(f"Error {code}: {message}")
         except requests.exceptions.RequestException as e:
             raise Exception(f"Request failed: {str(e)}")
+
+    def search_smart(self, query: str, filter: dict | None = None) -> Any:
+        """Semantic (vector) search via the mcp-tools plugin's /search/smart endpoint.
+
+        Requires Obsidian plugins: Local REST API + mcp-tools + Smart Connections.
+
+        The endpoint validator uses arktype's type("string.json.parse"), which means the
+        body must arrive as a RAW STRING that the server itself JSON-parses. Sending it
+        with Content-Type: application/json would let Express auto-parse it into an
+        object first and fail validation with "must be a string (was an object)".
+        """
+        url = f"{self.get_base_url()}/search/smart"
+
+        body: dict = {"query": query}
+        if filter:
+            body["filter"] = filter
+
+        def call_fn():
+            headers = self._get_headers()
+            headers["Content-Type"] = "text/plain"
+            response = requests.post(
+                url,
+                headers=headers,
+                data=json.dumps(body),
+                verify=self.verify_ssl,
+                timeout=self.timeout,
+            )
+            if response.status_code == 404:
+                raise Exception(
+                    "/search/smart not found — the mcp-tools Obsidian plugin is not "
+                    "installed. Install 'MCP Tools' + 'Smart Connections' plugins."
+                )
+            if response.status_code == 503:
+                raise Exception(
+                    "Smart Connections plugin is not available in Obsidian. Install "
+                    "and enable it to use semantic search."
+                )
+            response.raise_for_status()
+            return response.json()
+
+        return self._safe_call(call_fn)
 
     def list_files_in_vault(self) -> Any:
         url = f"{self.get_base_url()}/vault/"
