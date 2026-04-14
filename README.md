@@ -14,6 +14,7 @@ The server implements multiple tools to interact with Obsidian:
 - list_files_in_dir: Lists all files and directories in a specific Obsidian directory
 - get_file_contents: Return the content of a single file in your vault.
 - search: Search for documents matching a specified text query across all files in the vault
+- search_smart: Semantic (vector) search across the vault using Smart Connections embeddings. Requires the `MCP Tools` and `Smart Connections` Obsidian community plugins in addition to `Local REST API`.
 - patch_content: Insert content into an existing note relative to a heading, block reference, or frontmatter field.
 - append_content: Append content to a new or existing file in the vault.
 - delete_file: Delete a file or directory from your vault.

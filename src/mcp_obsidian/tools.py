@@ -584,6 +584,71 @@ class RecentPeriodicNotesToolHandler(ToolHandler):
             )
         ]
         
+class SmartSearchToolHandler(ToolHandler):
+    def __init__(self):
+        super().__init__("obsidian_search_smart")
+
+    def get_tool_description(self):
+        return Tool(
+            name=self.name,
+            description=(
+                "Semantic (vector) search across your Obsidian vault using Smart "
+                "Connections embeddings. Ranks notes by semantic similarity rather "
+                "than keyword match — use this when you want meaning-based retrieval "
+                "('how does authentication flow end-to-end') rather than literal "
+                "string matching. Requires the 'MCP Tools' and 'Smart Connections' "
+                "Obsidian plugins to be installed and enabled."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Natural-language query. The longer / more specific the phrase, the better the embedding match.",
+                        "minLength": 1,
+                    },
+                    "folders": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": 'Optional: restrict results to these folder prefixes (e.g. ["Labs/Architecture"]).',
+                    },
+                    "exclude_folders": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": 'Optional: exclude these folder prefixes (e.g. ["Archive", "Private"]).',
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Optional: maximum number of results to return.",
+                        "minimum": 1,
+                    },
+                },
+                "required": ["query"],
+            },
+        )
+
+    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+        if "query" not in args:
+            raise RuntimeError("query argument missing in arguments")
+
+        filter_: dict = {}
+        if "folders" in args and args["folders"]:
+            filter_["folders"] = args["folders"]
+        if "exclude_folders" in args and args["exclude_folders"]:
+            filter_["excludeFolders"] = args["exclude_folders"]
+        if "limit" in args and args["limit"]:
+            filter_["limit"] = args["limit"]
+
+        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        results = api.search_smart(args["query"], filter_ or None)
+
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(results, indent=2),
+            )
+        ]
+
 class RecentChangesToolHandler(ToolHandler):
     def __init__(self):
         super().__init__("obsidian_get_recent_changes")
