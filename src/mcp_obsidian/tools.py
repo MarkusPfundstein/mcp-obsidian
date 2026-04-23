@@ -7,6 +7,7 @@ from mcp.types import (
 )
 import json
 import os
+import re
 from . import obsidian
 
 api_key = os.getenv("OBSIDIAN_API_KEY", "")
@@ -616,13 +617,128 @@ class RecentChangesToolHandler(ToolHandler):
         limit = args.get("limit", 10)
         if not isinstance(limit, int) or limit < 1:
             raise RuntimeError(f"Invalid limit: {limit}. Must be a positive integer")
-            
+
         days = args.get("days", 90)
         if not isinstance(days, int) or days < 1:
             raise RuntimeError(f"Invalid days: {days}. Must be a positive integer")
 
         api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
         results = api.get_recent_changes(limit, days)
+
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(results, indent=2)
+            )
+        ]
+
+
+def _extract_insights(content: str) -> dict:
+    highlights = re.findall(r'==(.+?)==', content)
+
+    callouts = []
+    callout_pattern = re.compile(
+        r'>\s*\[!(important|warning|concern|note|tip|question)\](.*?)(?=\n(?!>)|\Z)',
+        re.IGNORECASE | re.DOTALL
+    )
+    for m in callout_pattern.finditer(content):
+        body = re.sub(r'\n>\s*', ' ', m.group(2)).strip()
+        callouts.append({"type": m.group(1).lower(), "content": body})
+
+    tag_pattern = re.compile(r'^.*#(concern|important|todo|action|followup)\b.*$', re.MULTILINE | re.IGNORECASE)
+    tagged_lines = [m.group(0).strip() for m in tag_pattern.finditer(content)]
+
+    key_sections: dict = {}
+    section_names = {"key takeaways", "action items", "concerns", "important", "summary", "highlights", "next steps"}
+    heading_re = re.compile(r'^#{1,6}\s+(.+)$', re.MULTILINE)
+    lines = content.split('\n')
+    i = 0
+    while i < len(lines):
+        hm = heading_re.match(lines[i])
+        if hm and hm.group(1).strip().lower() in section_names:
+            heading = hm.group(1).strip()
+            section_lines = []
+            i += 1
+            while i < len(lines) and not heading_re.match(lines[i]):
+                if lines[i].strip():
+                    section_lines.append(lines[i].strip())
+                i += 1
+            if section_lines:
+                key_sections[heading] = section_lines
+        else:
+            i += 1
+
+    return {
+        "highlights": highlights,
+        "callouts": callouts,
+        "tagged_lines": tagged_lines,
+        "key_sections": key_sections,
+    }
+
+
+class ExtractInsightsToolHandler(ToolHandler):
+    def __init__(self):
+        super().__init__("obsidian_extract_insights")
+
+    def get_tool_description(self):
+        return Tool(
+            name=self.name,
+            description=(
+                "Extract important content from recent or specified notes. "
+                "Finds highlights (==text==), callout blocks (> [!important], > [!concern], etc.), "
+                "tagged lines (#concern, #todo, #important, #action), and content under key headings "
+                "(Action Items, Key Takeaways, Concerns, Summary, etc.). "
+                "Use this to quickly surface concerns, decisions, and action items from meeting notes, "
+                "articles, or daily notes without reading every file in full."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "filepaths": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Specific file paths to extract from (relative to vault root). If omitted, uses recently modified files."
+                    },
+                    "days_back": {
+                        "type": "integer",
+                        "description": "How many days back to look for recent files when filepaths is not provided (default: 7).",
+                        "default": 7,
+                        "minimum": 1
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of files to process (default: 20).",
+                        "default": 20,
+                        "minimum": 1,
+                        "maximum": 50
+                    }
+                },
+                "required": []
+            }
+        )
+
+    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+        filepaths = args.get("filepaths")
+        days_back = args.get("days_back", 7)
+        limit = args.get("limit", 20)
+
+        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+
+        if not filepaths:
+            recent = api.get_recent_changes(limit=limit, days=days_back)
+            # DQL TABLE response: {"headers": [...], "rows": [[file_obj, ...], ...]}
+            rows = recent.get("rows", []) if isinstance(recent, dict) else []
+            filepaths = [row[0]["path"] for row in rows if row and isinstance(row[0], dict) and "path" in row[0]]
+
+        results = []
+        for path in filepaths[:limit]:
+            try:
+                content = api.get_file_contents(path)
+                extracted = _extract_insights(content)
+                if any(v for v in extracted.values()):
+                    results.append({"file": path, **extracted})
+            except Exception:
+                pass
 
         return [
             TextContent(
