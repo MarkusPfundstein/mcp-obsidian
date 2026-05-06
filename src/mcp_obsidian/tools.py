@@ -327,6 +327,67 @@ class PutContentToolHandler(ToolHandler):
        ]
    
 
+class SearchReplaceToolHandler(ToolHandler):
+   def __init__(self):
+       super().__init__("obsidian_search_replace")
+
+   def get_tool_description(self):
+       return Tool(
+           name=self.name,
+           description=(
+               "Replace an exact string in a vault file. The old_str must be unique in the file "
+               "unless replace_all is true. Use this for precise edits without re-uploading the "
+               "whole file. If old_str is not unique, extend it with surrounding context."
+           ),
+           inputSchema={
+               "type": "object",
+               "properties": {
+                   "filepath": {
+                       "type": "string",
+                       "description": "Path to the file (relative to vault root)",
+                       "format": "path"
+                   },
+                   "old_str": {
+                       "type": "string",
+                       "description": "Exact string to replace. Must be unique in the file unless replace_all is true."
+                   },
+                   "new_str": {
+                       "type": "string",
+                       "description": "Replacement string."
+                   },
+                   "replace_all": {
+                       "type": "boolean",
+                       "description": "Replace every occurrence instead of requiring uniqueness.",
+                       "default": False
+                   }
+               },
+               "required": ["filepath", "old_str", "new_str"]
+           }
+       )
+
+   def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+       for k in ("filepath", "old_str", "new_str"):
+           if k not in args:
+               raise RuntimeError(f"{k} argument required")
+       if args["old_str"] == args["new_str"]:
+           raise RuntimeError("old_str and new_str are identical; nothing to do")
+
+       api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+       n = api.search_replace(
+           args["filepath"],
+           args["old_str"],
+           args["new_str"],
+           args.get("replace_all", False)
+       )
+
+       return [
+           TextContent(
+               type="text",
+               text=f"Replaced {n} occurrence(s) in {args['filepath']}"
+           )
+       ]
+
+
 class DeleteFileToolHandler(ToolHandler):
    def __init__(self):
        super().__init__("obsidian_delete_file")

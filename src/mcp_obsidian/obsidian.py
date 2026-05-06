@@ -148,11 +148,11 @@ class Obsidian():
 
     def put_content(self, filepath: str, content: str) -> Any:
         url = f"{self.get_base_url()}/vault/{filepath}"
-        
+
         def call_fn():
             response = requests.put(
-                url, 
-                headers=self._get_headers() | {'Content-Type': 'text/markdown'}, 
+                url,
+                headers=self._get_headers() | {'Content-Type': 'text/markdown'},
                 data=content,
                 verify=self.verify_ssl,
                 timeout=self.timeout
@@ -161,7 +161,26 @@ class Obsidian():
             return None
 
         return self._safe_call(call_fn)
-    
+
+    def search_replace(self, filepath: str, old_str: str, new_str: str, replace_all: bool = False) -> int:
+        content = self.get_file_contents(filepath)
+        count = content.count(old_str)
+        if count == 0:
+            raise Exception(f"old_str not found in {filepath}")
+        if count > 1 and not replace_all:
+            raise Exception(
+                f"old_str matches {count} times in {filepath}; "
+                "pass replace_all=true or extend the snippet to make it unique"
+            )
+        if replace_all:
+            new_content = content.replace(old_str, new_str)
+            replaced = count
+        else:
+            new_content = content.replace(old_str, new_str, 1)
+            replaced = 1
+        self.put_content(filepath, new_content)
+        return replaced
+
     def delete_file(self, filepath: str) -> Any:
         """Delete a file or directory from the vault.
         
