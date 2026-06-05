@@ -10,7 +10,9 @@ def _validate_vault_path(path: str) -> str:
     """Reject paths that would escape the vault root via traversal sequences.
 
     Checks both the raw value and the URL-decoded form so that encoded
-    variants like ``%2e%2e%2f`` are also caught.
+    variants like ``%2e%2e%2f`` are also caught.  The leading slash is
+    stripped *before* normalisation so that absolute-looking inputs such as
+    ``/../../etc/passwd`` are treated as relative paths and correctly caught.
 
     Returns the validated path stripped of a leading slash (the REST API
     treats paths as vault-relative so a leading slash is redundant and
@@ -18,11 +20,12 @@ def _validate_vault_path(path: str) -> str:
 
     Raises ValueError for any path that resolves outside the vault root.
     """
-    for candidate in (path, urllib.parse.unquote(path)):
+    stripped = path.lstrip("/")
+    for candidate in (stripped, urllib.parse.unquote(stripped)):
         normalised = posixpath.normpath(candidate.replace("\\", "/"))
-        if normalised == ".." or normalised.startswith("../") or "/../" in normalised:
+        if normalised in ("..", ".") or normalised.startswith("../") or "/../" in normalised:
             raise ValueError(f"Invalid vault path (traversal detected): {path!r}")
-    return path.lstrip("/")
+    return stripped
 
 
 class Obsidian():
