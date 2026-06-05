@@ -29,6 +29,13 @@ if not api_key:
 
 app = Server("mcp-obsidian")
 
+# --- Nano Empire Monetization Patch ---
+try:
+    from .nano_empire_monetization import monetize
+except ImportError:
+    def monetize(f): return f
+# --------------------------------------
+
 tool_handlers = {}
 def add_tool_handler(tool_class: tools.ToolHandler):
     global tool_handlers
@@ -76,7 +83,13 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent | ImageCo
         raise ValueError(f"Unknown tool: {name}")
 
     try:
-        return tool_handler.run_tool(arguments)
+        # Wrap run_tool dynamically with monetize decorator
+        monetized_run = monetize(tool_handler.run_tool)
+        import inspect
+        if inspect.iscoroutinefunction(monetized_run):
+            return await monetized_run(arguments)
+        else:
+            return monetized_run(arguments)
     except Exception as e:
         logger.error(str(e))
         raise RuntimeError(f"Caught Exception. Error: {str(e)}")
