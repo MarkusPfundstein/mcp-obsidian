@@ -9,11 +9,11 @@ import json
 import os
 from . import obsidian
 
-api_key = os.getenv("OBSIDIAN_API_KEY", "")
+api_key = os.getenv("OBSIDIAN_API_KEY", "").strip()
 obsidian_host = os.getenv("OBSIDIAN_HOST", "127.0.0.1")
 
-if api_key == "":
-    raise ValueError(f"OBSIDIAN_API_KEY environment variable required. Working directory: {os.getcwd()}")
+if not api_key:
+    raise ValueError("OBSIDIAN_API_KEY environment variable required.")
 
 TOOL_LIST_FILES_IN_VAULT = "obsidian_list_files_in_vault"
 TOOL_LIST_FILES_IN_DIR = "obsidian_list_files_in_dir"
@@ -146,7 +146,9 @@ class SearchToolHandler(ToolHandler):
                     "context_length": {
                         "type": "integer",
                         "description": "How much context to return around the matching string (default: 100)",
-                        "default": 100
+                        "default": 100,
+                        "minimum": 1,
+                        "maximum": 10000
                     }
                 },
                 "required": ["query"]
@@ -207,7 +209,8 @@ class AppendContentToolHandler(ToolHandler):
                    },
                    "content": {
                        "type": "string",
-                       "description": "Content to append to the file"
+                       "description": "Content to append to the file",
+                       "maxLength": 5000000
                    }
                },
                "required": ["filepath", "content"]
@@ -218,8 +221,12 @@ class AppendContentToolHandler(ToolHandler):
        if "filepath" not in args or "content" not in args:
            raise RuntimeError("filepath and content arguments required")
 
+       content = args["content"]
+       if len(content) > 5_000_000:
+           raise RuntimeError("content exceeds maximum allowed size (5 MB)")
+
        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
-       api.append_content(args.get("filepath", ""), args["content"])
+       api.append_content(args.get("filepath", ""), content)
 
        return [
            TextContent(
@@ -271,7 +278,8 @@ class PatchContentToolHandler(ToolHandler):
                    },
                    "content": {
                        "type": "string",
-                       "description": "Content to insert"
+                       "description": "Content to insert",
+                       "maxLength": 5000000
                    }
                },
                "required": ["filepath", "operation", "target_type", "target", "content"]
@@ -282,13 +290,17 @@ class PatchContentToolHandler(ToolHandler):
        if not all(k in args for k in ["filepath", "operation", "target_type", "target", "content"]):
            raise RuntimeError("filepath, operation, target_type, target and content arguments required")
 
+       content = args.get("content", "")
+       if len(content) > 5_000_000:
+           raise RuntimeError("content exceeds maximum allowed size (5 MB)")
+
        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
        api.patch_content(
            args.get("filepath", ""),
            args.get("operation", ""),
            args.get("target_type", ""),
            args.get("target", ""),
-           args.get("content", "")
+           content
        )
 
        return [
@@ -322,7 +334,8 @@ class PutContentToolHandler(ToolHandler):
                    },
                    "content": {
                        "type": "string",
-                       "description": "Full file content. Replaces existing content entirely if the file already exists."
+                       "description": "Full file content. Replaces existing content entirely if the file already exists.",
+                       "maxLength": 5000000
                    }
                },
                "required": ["filepath", "content"]
@@ -333,8 +346,12 @@ class PutContentToolHandler(ToolHandler):
        if "filepath" not in args or "content" not in args:
            raise RuntimeError("filepath and content arguments required")
 
+       content = args["content"]
+       if len(content) > 5_000_000:
+           raise RuntimeError("content exceeds maximum allowed size (5 MB)")
+
        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
-       api.put_content(args.get("filepath", ""), args["content"])
+       api.put_content(args.get("filepath", ""), content)
 
        return [
            TextContent(

@@ -1,24 +1,45 @@
+import posixpath
 import re
 import requests
 import urllib.parse
 import os
 from typing import Any
 
+
+def _validate_vault_path(path: str) -> str:
+    """Reject paths that would escape the vault root via traversal sequences.
+
+    Checks both the raw value and the URL-decoded form so that encoded
+    variants like ``%2e%2e%2f`` are also caught.
+
+    Returns the validated path stripped of a leading slash (the REST API
+    treats paths as vault-relative so a leading slash is redundant and
+    confusing).
+
+    Raises ValueError for any path that resolves outside the vault root.
+    """
+    for candidate in (path, urllib.parse.unquote(path)):
+        normalised = posixpath.normpath(candidate.replace("\\", "/"))
+        if normalised == ".." or normalised.startswith("../") or "/../" in normalised:
+            raise ValueError(f"Invalid vault path (traversal detected): {path!r}")
+    return path.lstrip("/")
+
+
 class Obsidian():
     def __init__(
-            self, 
+            self,
             api_key: str,
             protocol: str = os.getenv('OBSIDIAN_PROTOCOL', 'https').lower(),
             host: str = str(os.getenv('OBSIDIAN_HOST', '127.0.0.1')),
             port: int = int(os.getenv('OBSIDIAN_PORT', '27124')),
-            verify_ssl: bool = False,
+            verify_ssl: bool = os.getenv('OBSIDIAN_VERIFY_SSL', 'true').lower() != 'false',
         ):
         self.api_key = api_key
-        
+
         if protocol == 'http':
             self.protocol = 'http'
         else:
-            self.protocol = 'https' # Default to https for any other value, including 'https'
+            self.protocol = 'https'  # Default to https for any other value, including 'https'
 
         self.host = host
         self.port = port
@@ -65,6 +86,7 @@ class Obsidian():
 
         
     def list_files_in_dir(self, dirpath: str) -> Any:
+        dirpath = _validate_vault_path(dirpath)
         url = f"{self.get_base_url()}/vault/{dirpath}/"
         
         def call_fn():
@@ -76,6 +98,7 @@ class Obsidian():
         return self._safe_call(call_fn)
 
     def get_file_contents(self, filepath: str) -> Any:
+        filepath = _validate_vault_path(filepath)
         url = f"{self.get_base_url()}/vault/{filepath}"
     
         def call_fn():
@@ -122,6 +145,7 @@ class Obsidian():
         return self._safe_call(call_fn)
     
     def append_content(self, filepath: str, content: str) -> Any:
+        filepath = _validate_vault_path(filepath)
         url = f"{self.get_base_url()}/vault/{filepath}"
 
         def call_fn():
@@ -165,6 +189,7 @@ class Obsidian():
             raise
 
     def _patch_content_raw(self, filepath: str, operation: str, target_type: str, target: str, content: str) -> Any:
+        filepath = _validate_vault_path(filepath)
         url = f"{self.get_base_url()}/vault/{filepath}"
 
         # NOTE: The Local REST API rejects 'text/markdown; charset=utf-8' on
@@ -186,6 +211,7 @@ class Obsidian():
         return self._safe_call(call_fn)
 
     def put_content(self, filepath: str, content: str) -> Any:
+        filepath = _validate_vault_path(filepath)
         url = f"{self.get_base_url()}/vault/{filepath}"
 
         def call_fn():
@@ -203,13 +229,14 @@ class Obsidian():
     
     def delete_file(self, filepath: str) -> Any:
         """Delete a file or directory from the vault.
-        
+
         Args:
             filepath: Path to the file to delete (relative to vault root)
-            
+
         Returns:
             None on success
         """
+        filepath = _validate_vault_path(filepath)
         url = f"{self.get_base_url()}/vault/{filepath}"
         
         def call_fn():
@@ -273,6 +300,7 @@ class Obsidian():
         notes without frontmatter; never raises for missing frontmatter
         (only for missing files or transport errors).
         """
+        filepath = _validate_vault_path(filepath)
         url = f"{self.get_base_url()}/vault/{filepath}"
         headers = self._get_headers() | {
             'Accept': 'application/vnd.olrapi.note+json'
@@ -352,12 +380,15 @@ class Obsidian():
         Returns:
             List of recently modified files with metadata
         """
-        # Build the DQL query
+        # Build the DQL query — explicit int() cast prevents injection if
+        # upstream validation is ever relaxed or bypassed.
+        safe_days = int(days)
+        safe_limit = int(limit)
         query_lines = [
             "TABLE file.mtime",
-            f"WHERE file.mtime >= date(today) - dur({days} days)",
+            f"WHERE file.mtime >= date(today) - dur({safe_days} days)",
             "SORT file.mtime DESC",
-            f"LIMIT {limit}"
+            f"LIMIT {safe_limit}"
         ]
         
         # Join with proper DQL line breaks
