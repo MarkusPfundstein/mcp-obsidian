@@ -82,10 +82,214 @@ def test_search_returns_nothing_when_metadata_exceeds_character_budget(settings,
 
 
 def test_related_document_routing_is_bounded(settings, documents):
-    index = _index(settings, documents)
-    results = index.search("retry failure")
+    bounded = replace(
+        settings,
+        limits=replace(settings.limits, max_total_characters=2_000),
+    )
+    index = _index(bounded, documents)
+    results = index.search("default retry failure")
     assert any(result["route"].startswith("related:") for result in results)
     assert all(result["route"].count("related:") <= 1 for result in results)
+
+
+def test_role_aware_routing_preserves_canonical_and_behavior_evidence(
+    settings,
+    routing_documents,
+):
+    bounded = replace(
+        settings,
+        limits=replace(settings.limits, max_total_characters=4_200),
+    )
+    index = _index(bounded, routing_documents)
+
+    results = index.search("generate item per region")
+    headings = {result["heading_path"] for result in results}
+
+    assert "Preferences Configuration > Interface" in headings
+    assert (
+        "Runtime processing > Behavior > Changing generate item per region preference"
+        in headings
+    )
+    assert (
+        "Transfer representation > Interface > File Format > Per-region mode indicator"
+        not in headings
+    )
+    assert any(result["route"].startswith("related:") for result in results)
+    assert len({result["document_id"] for result in results}) <= 2
+    assert len(results) <= 4
+    assert serialized_character_count(results) <= 4_200
+
+
+def test_role_aware_routing_is_deterministic_and_does_not_amplify_cycles(
+    settings,
+    routing_documents,
+):
+    bounded = replace(
+        settings,
+        limits=replace(settings.limits, max_total_characters=4_200),
+    )
+    index = _index(bounded, routing_documents)
+
+    first = index.search("generate item per region default behavior")
+    second = index.search("generate item per region default behavior")
+
+    assert first == second
+    assert len({result["chunk_id"] for result in first}) == len(first)
+    routed = [result for result in first if result["route"].startswith("related:")]
+    assert len(routed) <= 1
+    assert all(
+        result["route"] == f"related:{first[0]['document_id']}"
+        for result in routed
+    )
+    assert all(
+        result["ranking_reasons"].count("related-document-hop") <= 1
+        for result in first
+    )
+
+
+@pytest.mark.parametrize(
+    ("limit_changes", "maximum_results", "maximum_documents", "maximum_per_document"),
+    (
+        ({"max_sections": 2}, 2, 2, 2),
+        ({"max_documents": 1}, 4, 1, 2),
+        ({"max_sections_per_document": 1}, 4, 2, 1),
+    ),
+)
+def test_role_aware_routing_preserves_selection_limits(
+    settings,
+    routing_documents,
+    limit_changes,
+    maximum_results,
+    maximum_documents,
+    maximum_per_document,
+):
+    bounded = replace(
+        settings,
+        limits=replace(
+            settings.limits,
+            max_total_characters=4_200,
+            **limit_changes,
+        ),
+    )
+    index = _index(bounded, routing_documents)
+
+    results = index.search("generate item per region default behavior")
+    counts: dict[str, int] = {}
+    for result in results:
+        counts[result["document_id"]] = counts.get(result["document_id"], 0) + 1
+
+    assert len(results) <= maximum_results
+    assert len(counts) <= maximum_documents
+    assert all(count <= maximum_per_document for count in counts.values())
+
+
+def test_related_routing_respects_filters_and_inactive_targets(
+    settings,
+    routing_documents,
+):
+    filtered = dict(routing_documents)
+    filtered["Documentation/runtime.md"] = filtered[
+        "Documentation/runtime.md"
+    ].replace("area: platform", "area: restricted")
+    filtered["Documentation/transfer.md"] = filtered[
+        "Documentation/transfer.md"
+    ].replace("area: platform", "area: restricted")
+    bounded = replace(
+        settings,
+        limits=replace(settings.limits, max_total_characters=4_200),
+    )
+    index = _index(bounded, filtered)
+
+    results = index.search(
+        "generate item per region",
+        filters={"area": "platform"},
+    )
+
+    assert results
+    assert {result["document_id"] for result in results} == {"service-preferences"}
+    assert "inactive-target" not in index.documents
+    assert all("missing-document" not in result["route"] for result in results)
+
+
+def test_relationship_routing_never_follows_a_second_hop(
+    settings,
+    routing_documents,
+):
+    bounded = replace(
+        settings,
+        limits=replace(settings.limits, max_total_characters=4_200),
+    )
+    index = _index(bounded, routing_documents)
+
+    results = index.search("generate item per region")
+    routed = [result for result in results if result["route"].startswith("related:")]
+
+    assert len(routed) <= 1
+    assert all(
+        result["route"]
+        in {"related:service-preferences", "related:runtime-behavior"}
+        for result in routed
+    )
+    assert not any(result["document_id"] == "downstream-format" for result in routed)
+
+
+def test_relationship_routing_can_be_disabled(settings, routing_documents):
+    direct_only = replace(
+        settings,
+        limits=replace(
+            settings.limits,
+            max_total_characters=4_200,
+            related_document_hops=0,
+        ),
+    )
+    index = _index(direct_only, routing_documents)
+
+    results = index.search("generate item per region default behavior")
+
+    assert results
+    assert all(result["route"] == "direct" for result in results)
+
+
+def test_irrelevant_relationships_do_not_override_direct_ranking(
+    settings,
+    routing_documents,
+):
+    bounded = replace(
+        settings,
+        limits=replace(settings.limits, max_total_characters=4_200),
+    )
+    index = _index(bounded, routing_documents)
+
+    results = index.search("archive checksum downstream consumer")
+
+    assert results[0]["document_id"] == "downstream-format"
+    assert results[0]["route"] == "direct"
+    assert all(result["route"] == "direct" for result in results)
+
+
+def test_flat_direct_ranking_remains_relevance_ordered(settings):
+    bounded = replace(
+        settings,
+        allowed_statuses=(),
+        allowed_types=(),
+        limits=replace(settings.limits, max_total_characters=2_000),
+    )
+    index = _index(
+        bounded,
+        {
+            "Documentation/strong.md": (
+                "# Strong\n\n## Behavior\n\nA worker retries a request after a timeout."
+            ),
+            "Documentation/weak.md": (
+                "# Weak\n\n## Notes\n\nA request can be inspected."
+            ),
+        },
+    )
+
+    results = index.search("retry request timeout")
+
+    assert results[0]["source"] == "Documentation/strong.md"
+    assert all(result["route"] == "direct" for result in results)
 
 
 def test_metadata_section_and_related_lookups(settings, documents):

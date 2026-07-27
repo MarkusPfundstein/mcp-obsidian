@@ -110,3 +110,107 @@ type: feature-doc
 This file must not be indexed.
 """,
     }
+
+
+@pytest.fixture
+def routing_documents() -> dict[str, str]:
+    return {
+        "Documentation/preferences.md": """---
+document_id: service-preferences
+title: Service preferences
+summary: Canonical service configuration.
+status: active
+type: feature-doc
+area: platform
+evidence: specified
+related_documents: [runtime-behavior, transfer-format, missing-document]
+---
+# Preferences Configuration
+
+## Interface
+
+Generate item per region is a service preference with a documented default.
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| generate_item_per_region | true | Generate one item for every active region. |
+| processing_interval | Standard | Select the processing interval. |
+
+## Validation
+
+The processing interval must be a supported value.
+""",
+        "Documentation/runtime.md": """---
+document_id: runtime-behavior
+title: Runtime behavior
+summary: Operational generation behavior.
+status: active
+type: feature-doc
+area: platform
+evidence: observed
+related_documents: [service-preferences, transfer-format]
+---
+# Runtime processing
+
+## Behavior
+
+### Changing generate item per region preference
+
+When generate item per region is enabled, processing creates one item for each
+active region using the configured processing interval.
+
+## Failure handling
+
+An invalid region is skipped and recorded without stopping other regions.
+""",
+        "Documentation/transfer.md": """---
+document_id: transfer-format
+title: Transfer representation
+summary: Peripheral import and export representation.
+status: active
+type: feature-doc
+area: platform
+evidence: specified
+related_documents: [runtime-behavior, downstream-format]
+---
+# Transfer representation
+
+## Interface
+
+### File Format
+
+#### Per-region mode indicator
+
+Import and export files serialize the generate item per region flag as a field.
+""",
+        "Documentation/downstream.md": """---
+document_id: downstream-format
+title: Downstream format
+summary: A second-hop representation.
+status: active
+type: feature-doc
+area: platform
+evidence: specified
+---
+# Downstream format
+
+## Reference
+
+The archive checksum representation is used only by a downstream consumer.
+""",
+        "Documentation/inactive.md": """---
+document_id: inactive-target
+title: Inactive target
+summary: Content excluded from the active index.
+status: draft
+type: feature-doc
+area: platform
+related_documents: [service-preferences]
+---
+# Inactive target
+
+## Interface
+
+This inactive interface must not participate in routing.
+""",
+    }

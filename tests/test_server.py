@@ -74,6 +74,34 @@ def test_search_budget_applies_to_serialized_json_with_escaping_and_unicode(sett
     assert "\x01" in payload["results"][0]["excerpt"]
 
 
+def test_role_aware_search_reserves_serialized_space_for_complementary_evidence(
+    settings,
+    routing_documents,
+):
+    bounded = replace(
+        settings,
+        limits=replace(settings.limits, max_total_characters=4_200),
+    )
+    server.configure(bounded, MemorySource(routing_documents))
+
+    response = _run(
+        server.call_tool(
+            "search_docs",
+            {"query": "generate item per region default behavior"},
+        )
+    )
+    text = response[0].text
+    payload = json.loads(text)
+    headings = {result["heading_path"] for result in payload["results"]}
+
+    assert len(text) <= 4_200
+    assert "Preferences Configuration > Interface" in headings
+    assert (
+        "Runtime processing > Behavior > Changing generate item per region preference"
+        in headings
+    )
+
+
 def test_search_rejects_budget_smaller_than_response_envelope(settings, documents):
     server.configure(settings, MemorySource(documents))
 

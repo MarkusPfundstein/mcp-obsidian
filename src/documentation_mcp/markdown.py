@@ -116,19 +116,70 @@ def _summary(text: str, limit: int = 240) -> str:
     return compact[: limit - 1].rstrip() + "…"
 
 
+def _matches_heading_term(heading: str, terms: tuple[str, ...]) -> bool:
+    heading_words = tuple(WORD_RE.findall(heading.lower()))
+    for term in terms:
+        term_words = tuple(WORD_RE.findall(term.lower()))
+        if not term_words:
+            continue
+        width = len(term_words)
+        if any(
+            heading_words[position : position + width] == term_words
+            for position in range(len(heading_words) - width + 1)
+        ):
+            return True
+    return False
+
+
 def _role(heading_path: str) -> str:
-    heading = heading_path.lower()
+    parts = [part.strip().lower() for part in heading_path.split(" > ")]
+    leaf = parts[-1]
+    if _matches_heading_term(
+        leaf,
+        (
+            "edge",
+            "failure",
+            "failures",
+            "error",
+            "errors",
+            "exception",
+            "exceptions",
+            "limitation",
+            "limitations",
+        ),
+    ):
+        return "edge-case"
+    if "interface" in parts:
+        return "interface"
+    if "behavior" in parts or leaf.startswith(("when ", "changing ")):
+        return "behavior"
+    if any(
+        _matches_heading_term(
+            part,
+            ("validation", "constraint", "constraints"),
+        )
+        for part in parts
+    ):
+        return "validation"
+
     mappings = (
-        ("edge-case", ("edge", "failure", "error", "exception", "limitation")),
-        ("default", ("default", "configuration", "settings", "preference")),
+        ("interface", ("interface",)),
+        ("default", ("default", "defaults")),
+        (
+            "configuration",
+            ("configuration", "setting", "settings", "preference", "preferences"),
+        ),
         ("behavior", ("behavior", "workflow", "processing", "runtime")),
-        ("acceptance", ("acceptance", "requirement")),
-        ("integration", ("integration", "api", "interface", "connector")),
-        ("test-coverage", ("test", "coverage", "validation")),
+        ("validation", ("validation", "constraint", "constraints")),
+        ("reference", ("reference", "data structure", "schema")),
+        ("acceptance", ("acceptance", "requirement", "requirements")),
+        ("integration", ("integration", "api", "connector", "connectors")),
+        ("test-coverage", ("test", "coverage")),
     )
-    for role, terms in mappings:
-        if any(term in heading for term in terms):
-            return role
+    for heading in (leaf, *reversed(parts[:-1])):
+        for role, terms in mappings:
+            if _matches_heading_term(heading, terms):
+                return role
     return "general"
 
 

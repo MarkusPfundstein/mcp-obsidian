@@ -20,9 +20,71 @@ from .source import SourceDocumentError, SourceLimitError
 
 
 TOKEN_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
+TABLE_SEPARATOR_CELL_RE = re.compile(r":?-{3,}:?")
 SUPPORTED_FILTERS = {"status", "type", "area", "tags"}
 MAX_REPORTED_INDEX_DIAGNOSTICS = 20
 MAX_DIAGNOSTIC_SOURCE_CHARACTERS = 240
+RELATED_SCORE_FLOOR = 0.30
+SUPPLEMENT_SCORE_FLOOR = 0.42
+COMPLEMENT_EXCERPT_RESERVE = 800
+GENERIC_SECTION_LEAVES = frozenset(
+    {"overview", "summary", "related documentation"}
+)
+CANONICAL_CONTEXT_TERMS = frozenset(
+    {
+        "configuration",
+        "configure",
+        "default",
+        "field",
+        "option",
+        "parameter",
+        "preference",
+        "property",
+        "setting",
+    }
+)
+SETTING_HEADER_TERMS = frozenset(
+    {"field", "option", "parameter", "preference", "property", "setting"}
+)
+COMPLEMENTARY_ROLES: dict[str, tuple[str, ...]] = {
+    "interface": (
+        "behavior",
+        "validation",
+        "edge-case",
+        "configuration",
+        "reference",
+    ),
+    "default": (
+        "behavior",
+        "validation",
+        "edge-case",
+        "interface",
+        "configuration",
+        "reference",
+    ),
+    "configuration": (
+        "behavior",
+        "validation",
+        "edge-case",
+        "interface",
+        "default",
+        "reference",
+    ),
+    "reference": (
+        "behavior",
+        "validation",
+        "edge-case",
+        "interface",
+        "default",
+        "configuration",
+    ),
+    "behavior": ("interface", "default", "configuration", "reference", "validation"),
+    "validation": ("configuration", "interface", "default", "behavior", "edge-case", "reference"),
+    "edge-case": ("validation", "behavior", "configuration", "interface", "default"),
+    "integration": ("interface", "behavior", "configuration", "reference", "validation"),
+    "acceptance": ("validation", "behavior", "configuration", "interface"),
+    "test-coverage": ("validation", "behavior", "configuration", "interface"),
+}
 logger = logging.getLogger("documentation-mcp")
 
 
@@ -63,6 +125,33 @@ def _filter_values(value: Any) -> set[str]:
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
         return set(value)
     raise ValueError("Metadata filters must be strings or arrays of strings")
+
+
+def _table_cells(line: str) -> list[str]:
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def _has_canonical_default_evidence(section: Section) -> bool:
+    if section.role == "default":
+        return True
+    lines = section.text.splitlines()
+    for position, line in enumerate(lines[:-1]):
+        if "|" not in line or "|" not in lines[position + 1]:
+            continue
+        headers = _table_cells(line)
+        separators = _table_cells(lines[position + 1])
+        if (
+            len(headers) < 2
+            or len(headers) != len(separators)
+            or not all(TABLE_SEPARATOR_CELL_RE.fullmatch(cell) for cell in separators)
+        ):
+            continue
+        header_tokens = [set(_tokens(header)) for header in headers]
+        if any(tokens & SETTING_HEADER_TERMS for tokens in header_tokens) and any(
+            "default" in tokens for tokens in header_tokens
+        ):
+            return True
+    return False
 
 
 class DocumentationIndex:
@@ -367,11 +456,15 @@ class DocumentationIndex:
             reasons.append("heading-phrase-match")
 
         role_terms = {
-            "default": {"default", "setting", "configuration", "preference"},
+            "interface": {"interface", "field", "option", "parameter"},
+            "default": {"default"},
+            "configuration": {"setting", "configuration", "preference", "option"},
             "behavior": {"behavior", "work", "when", "how", "processing"},
+            "validation": {"validation", "valid", "constraint", "requirement"},
+            "reference": {"reference", "schema", "structure", "field"},
             "edge-case": {"error", "failure", "invalid", "edge", "cannot"},
-            "integration": {"api", "integration", "connector", "interface"},
-            "test-coverage": {"test", "coverage", "verify", "validation"},
+            "integration": {"api", "integration", "connector"},
+            "test-coverage": {"test", "coverage", "verify"},
         }
         if set(query_tokens) & role_terms.get(section.role, set()):
             score += 0.8
@@ -396,45 +489,180 @@ class DocumentationIndex:
         ranked.sort(key=lambda item: (-item.score, item.section.source, item.section.heading_path))
         return ranked
 
-    def _with_related(
+    @staticmethod
+    def _is_substantive(candidate: RankedSection) -> bool:
+        parts = [part.strip().lower() for part in candidate.section.heading_path.split(" > ")]
+        if not parts or parts[-1] in GENERIC_SECTION_LEAVES:
+            return False
+        return len(parts) > 1 or candidate.section.role != "general"
+
+    def _related_complement(
+        self,
+        query: str,
+        primary: RankedSection,
+        ranked: list[RankedSection],
+        filters: Mapping[str, Any],
+    ) -> RankedSection | None:
+        """Select at most one relevant complement from the primary's direct links."""
+        if self.settings.limits.related_document_hops == 0:
+            return None
+
+        complementary = COMPLEMENTARY_ROLES.get(primary.section.role, ())
+        if not complementary:
+            return None
+        role_positions = {role: position for position, role in enumerate(complementary)}
+        related_documents: dict[str, Document] = {}
+        for reference in primary.document.related_documents:
+            related = self._resolve_document(reference)
+            if (
+                related is None
+                or related.document_id == primary.document.document_id
+                or not self._document_matches(related, filters)
+            ):
+                continue
+            related_documents[related.document_id] = related
+        if not related_documents:
+            return None
+
+        floor = primary.score * RELATED_SCORE_FLOOR
+        options = [
+            candidate
+            for candidate in ranked
+            if candidate.document.document_id in related_documents
+            and self._is_substantive(candidate)
+            and candidate.section.role in role_positions
+            and candidate.score >= floor
+        ]
+        if not options:
+            return None
+        canonical_preferred = bool(
+            set(_tokens(f"{query} {primary.section.heading_path}"))
+            & CANONICAL_CONTEXT_TERMS
+        )
+        options.sort(
+            key=lambda item: (
+                0
+                if canonical_preferred
+                and _has_canonical_default_evidence(item.section)
+                else 1,
+                -item.score,
+                role_positions[item.section.role],
+                item.section.source,
+                item.section.heading_path,
+                item.section.chunk_id,
+            )
+        )
+        best = options[0]
+        canonical_reason = (
+            ("canonical-default-evidence",)
+            if canonical_preferred and _has_canonical_default_evidence(best.section)
+            else ()
+        )
+        return RankedSection(
+            section=best.section,
+            document=best.document,
+            score=best.score,
+            route=f"related:{primary.document.document_id}",
+            reasons=(
+                best.reasons
+                + (
+                    "related-document-hop",
+                    f"complementary-role:{primary.section.role}-to-{best.section.role}",
+                )
+                + canonical_reason
+            ),
+        )
+
+    def _selection_order(
         self,
         query: str,
         ranked: list[RankedSection],
         filters: Mapping[str, Any],
+        result_limit: int,
     ) -> list[RankedSection]:
-        if self.settings.limits.related_document_hops == 0:
-            return ranked
+        """Build a deterministic, limit-aware result order around one primary."""
+        if not ranked:
+            return []
+        substantive = [candidate for candidate in ranked if self._is_substantive(candidate)]
+        primary = (substantive or ranked)[0]
+        routed = self._related_complement(query, primary, ranked, filters)
 
-        combined = list(ranked)
-        positions = {item.section.chunk_id: index for index, item in enumerate(combined)}
-        for primary in ranked[: self.settings.limits.top_k]:
-            for reference in primary.document.related_documents:
-                related = self._resolve_document(reference)
-                if related is None or not self._document_matches(related, filters):
-                    continue
-                candidates = [
-                    candidate
-                    for section in related.sections
-                    if (candidate := self._score(query, related, section)) is not None
-                ]
-                if not candidates:
-                    continue
-                best = max(candidates, key=lambda item: item.score)
-                routed = RankedSection(
-                    section=best.section,
-                    document=best.document,
-                    score=best.score + primary.score * 0.35,
-                    route=f"related:{primary.document.document_id}",
-                    reasons=best.reasons + ("related-document-hop",),
+        selected: list[RankedSection] = []
+        selected_chunks: set[str] = set()
+        selected_documents: set[str] = set()
+        document_counts: Counter[str] = Counter()
+
+        def add(candidate: RankedSection) -> bool:
+            document_id = candidate.document.document_id
+            if candidate.section.chunk_id in selected_chunks or len(selected) >= result_limit:
+                return False
+            if (
+                document_id not in selected_documents
+                and len(selected_documents) >= self.settings.limits.max_documents
+            ):
+                return False
+            if document_counts[document_id] >= self.settings.limits.max_sections_per_document:
+                return False
+            selected.append(candidate)
+            selected_chunks.add(candidate.section.chunk_id)
+            selected_documents.add(document_id)
+            document_counts[document_id] += 1
+            return True
+
+        add(primary)
+        if routed is not None:
+            add(routed)
+
+        complementary = set(COMPLEMENTARY_ROLES.get(primary.section.role, ()))
+        local_supplements = [
+            candidate
+            for candidate in substantive
+            if candidate.document.document_id == primary.document.document_id
+            and candidate.section.role in complementary
+            and candidate.score >= primary.score * SUPPLEMENT_SCORE_FLOOR
+        ]
+        if local_supplements:
+            best_local = local_supplements[0]
+            add(
+                RankedSection(
+                    section=best_local.section,
+                    document=best_local.document,
+                    score=best_local.score,
+                    route="direct",
+                    reasons=best_local.reasons + ("complementary-section",),
                 )
-                existing_position = positions.get(best.section.chunk_id)
-                if existing_position is None:
-                    positions[best.section.chunk_id] = len(combined)
-                    combined.append(routed)
-                elif routed.score > combined[existing_position].score:
-                    combined[existing_position] = routed
-        combined.sort(key=lambda item: (-item.score, item.section.source, item.section.heading_path))
-        return combined
+            )
+
+        routed_chunk = routed.section.chunk_id if routed is not None else None
+        for candidate in ranked:
+            if candidate.section.chunk_id == routed_chunk:
+                continue
+            add(candidate)
+            if len(selected) >= result_limit:
+                break
+        return selected
+
+    @staticmethod
+    def _result_shell(candidate: RankedSection) -> dict[str, Any]:
+        return {
+            "chunk_id": candidate.section.chunk_id,
+            "document_id": candidate.document.document_id,
+            "heading_path": candidate.section.heading_path,
+            "summary": candidate.section.summary,
+            "evidence": candidate.section.evidence,
+            "score": round(candidate.score, 6),
+            "source": candidate.section.source,
+            "route": candidate.route,
+            "ranking_reasons": list(dict.fromkeys(candidate.reasons)),
+            "excerpt": "",
+        }
+
+    @staticmethod
+    def _is_selected_complement(candidate: RankedSection) -> bool:
+        return any(
+            reason == "related-document-hop" or reason == "complementary-section"
+            for reason in candidate.reasons
+        )
 
     def search(
         self,
@@ -468,37 +696,49 @@ class DocumentationIndex:
             raise ValueError("max_total_characters must be a positive integer")
         character_budget = min(requested_characters, self.settings.limits.max_total_characters)
 
-        ranked = self._with_related(
+        ranked = self._ranked(query.strip(), filter_map)
+        selected = self._selection_order(
             query.strip(),
-            self._ranked(query.strip(), filter_map),
+            ranked,
             filter_map,
+            result_limit,
         )
         results: list[dict[str, Any]] = []
-        document_counts: Counter[str] = Counter()
-        documents: set[str] = set()
-        for candidate in ranked:
-            document_id = candidate.document.document_id
-            if document_id not in documents and len(documents) >= self.settings.limits.max_documents:
-                continue
-            if document_counts[document_id] >= self.settings.limits.max_sections_per_document:
-                continue
-            result = {
-                "chunk_id": candidate.section.chunk_id,
-                "document_id": document_id,
-                "heading_path": candidate.section.heading_path,
-                "summary": candidate.section.summary,
-                "evidence": candidate.section.evidence,
-                "score": round(candidate.score, 6),
-                "source": candidate.section.source,
-                "route": candidate.route,
-                "ranking_reasons": list(dict.fromkeys(candidate.reasons)),
-                "excerpt": "",
-            }
+        for position, candidate in enumerate(selected):
+            result = self._result_shell(candidate)
 
             available_excerpt_characters = (
                 character_budget
                 - serialized_character_count([*results, result])
             )
+            if (
+                position == 0
+                and len(selected) > 1
+                and self._is_selected_complement(selected[1])
+            ):
+                complement = selected[1]
+                complement_shell = self._result_shell(complement)
+                empty_pair_size = serialized_character_count(
+                    [result, complement_shell]
+                )
+                available_pair_content = character_budget - empty_pair_size
+                if available_pair_content >= 2:
+                    reserve_budget = min(
+                        COMPLEMENT_EXCERPT_RESERVE,
+                        available_pair_content // 2,
+                    )
+                    reserved_excerpt = serialized_string_prefix(
+                        complement.section.text,
+                        reserve_budget,
+                    ).rstrip()
+                    if reserved_excerpt:
+                        complement_shell["excerpt"] = reserved_excerpt
+                        available_excerpt_characters = (
+                            character_budget
+                            - serialized_character_count(
+                                [result, complement_shell]
+                            )
+                        )
             excerpt = serialized_string_prefix(
                 candidate.section.text,
                 available_excerpt_characters,
@@ -506,8 +746,6 @@ class DocumentationIndex:
             if not excerpt:
                 continue
 
-            documents.add(document_id)
-            document_counts[document_id] += 1
             result["excerpt"] = excerpt
             results.append(result)
             if (

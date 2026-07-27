@@ -49,6 +49,54 @@ def test_chunk_ids_are_stable_for_unchanged_document():
     ]
 
 
+@pytest.mark.parametrize(
+    ("heading", "role"),
+    (
+        ("Preferences Configuration > Interface", "interface"),
+        ("Preferences Configuration > Defaults", "default"),
+        ("Preferences Configuration > Behavior", "behavior"),
+        ("Preferences Configuration > Validation", "validation"),
+        ("Service > Configuration", "configuration"),
+        ("Service > Behavior", "behavior"),
+        ("Service > Validation", "validation"),
+        ("Service > Technical Reference", "reference"),
+        ("Service > Failure handling", "edge-case"),
+        ("Service > Connector integration", "integration"),
+        ("Service > Test coverage", "test-coverage"),
+    ),
+)
+def test_structural_roles_are_inferred_from_generic_headings(heading, role):
+    levels = heading.split(" > ")
+    content = "\n\n".join(
+        f"{'#' * (position + 1)} {part}\n\nContent for {part}."
+        for position, part in enumerate(levels)
+    )
+
+    document = parse_document("Documentation/roles.md", content)
+
+    assert document.sections[-1].role == role
+
+
+@pytest.mark.parametrize(
+    "heading",
+    (
+        "Service > Capital notes",
+        "Service > Latest release",
+        "Service > Terror recovery",
+    ),
+)
+def test_structural_roles_do_not_match_substrings_inside_words(heading):
+    levels = heading.split(" > ")
+    content = "\n\n".join(
+        f"{'#' * (position + 1)} {part}\n\nContent for {part}."
+        for position, part in enumerate(levels)
+    )
+
+    document = parse_document("Documentation/roles.md", content)
+
+    assert document.sections[-1].role == "general"
+
+
 def test_malformed_frontmatter_does_not_crash_parser():
     document = parse_document(
         "Documentation/a.md",

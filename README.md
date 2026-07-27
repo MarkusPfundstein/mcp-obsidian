@@ -212,6 +212,21 @@ string escaping. If the remaining budget cannot fit a result's metadata and at
 least one excerpt character, that result is omitted. A client limit too small
 for the empty response envelope is rejected.
 
+Search first selects the highest-scoring substantive direct section. It may
+then select one meaningfully relevant complementary section through a
+`related_documents` edge declared by that primary document. Structural roles
+are inferred generically from headings, including interface/default,
+configuration, behavior, validation, edge-case, integration, reference, and
+test coverage. A routed section must retain at least 30% of the primary's
+direct score. For a setting-, preference-, default-, or configuration-oriented
+query, a relevant interface or default section with a Markdown setting/default
+table is preferred over a peripheral interface representation. Relationship
+links never increase scores. Only one hop is examined, reciprocal links are
+not expanded again, inactive or filtered targets are ignored, and serialized
+context is reserved for a selected complement before the primary excerpt is
+filled. The configured section, document, per-document, hop, and complete JSON
+response limits remain final.
+
 `get_document_metadata` returns only `document_id`, `source`, `title`,
 `summary`, `status`, `type`, `area`, `evidence`, `tags`,
 `related_documents`, and `section_count`. Arbitrary frontmatter is never
