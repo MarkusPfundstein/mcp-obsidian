@@ -1,0 +1,49 @@
+backend = "obsidian"
+
+allowed_directories = [
+  "Documentation",
+]
+
+allowed_statuses = [
+  "active",
+  "unreviewed",
+]
+
+allowed_types = []
+
+excluded_directories = [
+  "_inventory",
+  "_meta",
+  "_migration",
+]
+
+[limits]
+top_k = 5
+max_total_characters = 12000
+max_sections = 4
+max_documents = 2
+max_sections_per_document = 2
+related_document_hops = 1
+max_file_bytes = 1048576
+max_total_index_bytes = 33554432
+max_source_files = 2000
+max_source_directories = 500
+max_directory_entries = 5000
+max_directory_response_bytes = 1048576
+max_index_documents = 1000
+max_index_sections = 10000
+max_index_sections_per_document = 200
+max_tokens_per_section = 10000
+max_total_index_tokens = 500000
+max_frontmatter_bytes = 65536
+max_frontmatter_nodes = 1000
+max_frontmatter_depth = 20
+max_index_build_seconds = 120.0
+
+[obsidian]
+base_url = "https://127.0.0.1:27124"
+ca_certificate = "/path/to/obsidian-local-rest-api.crt"
+connect_timeout_seconds = 3.0
+read_timeout_seconds = 10.0
+request_retry_attempts = 3
+retry_backoff_seconds = 0.25

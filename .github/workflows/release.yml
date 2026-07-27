@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  UV_PYTHON: "3.11"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          enable-cache: true
+          version: "0.11.31"
+      - name: Install locked dependencies
+        run: uv sync --group dev --locked
+      - name: Verify annotated version tag
+        shell: bash
+        run: |
+          project_version="$(
+            uv run --no-sync python -c \
+              'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])'
+          )"
+          test "${GITHUB_REF_NAME}" = "v${project_version}"
+          test "$(git cat-file -t "${GITHUB_REF_NAME}")" = "tag"
+          test "$(git rev-list -n 1 "${GITHUB_REF_NAME}")" = "${GITHUB_SHA}"
+      - name: Validate release
+        run: |
+          uv run --no-sync pytest -q
+          uv run --no-sync pyright
+          uv build --no-sources
+          uv export --frozen --no-dev --no-emit-project \
+            --output-file dist/runtime-requirements.txt
+          uv run --no-sync pip-audit --requirement dist/runtime-requirements.txt
+      - name: Verify tag installation
+        run: |
+          uvx --refresh \
+            --from "git+https://github.com/${GITHUB_REPOSITORY}.git@${GITHUB_REF_NAME}" \
+            documentation-mcp --help
+      - name: Verify released artifact with locked dependencies
+        shell: bash
+        run: |
+          wheel_path="$(find dist -maxdepth 1 -name 'documentation_mcp-*.whl' -print -quit)"
+          test -n "${wheel_path}"
+          uvx --isolated --refresh \
+            --with-requirements dist/runtime-requirements.txt \
+            --from "${wheel_path}" \
+            documentation-mcp --help
+      - name: Generate artifact checksums
+        run: (cd dist && sha256sum ./* > SHA256SUMS)
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --verify-tag \
+            --generate-notes \
+            --title "${GITHUB_REF_NAME}"

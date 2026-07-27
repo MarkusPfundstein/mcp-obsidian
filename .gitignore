@@ -1,6 +1,7 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
+.coverage
 build/
 dist/
 wheels/
@@ -9,3 +10,16 @@ wheels/
 # Virtual environments
 .venv
 .env
+.env.*
+
+# Local credentials and certificates
+*.crt
+*.key
+*.pem
+*.p12
+
+# Local runtime configuration and output
+config.toml
+*.log
+results/
+benchmark-results/

@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feature/**"
+
+permissions:
+  contents: read
+
+env:
+  UV_PYTHON: "3.11"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          enable-cache: true
+          version: "0.11.31"
+      - name: Install dependencies
+        run: uv sync --group dev --locked
+      - name: Unit tests
+        run: uv run --no-sync pytest -q
+      - name: Type checking
+        run: uv run --no-sync pyright
+      - name: Build package
+        run: uv build --no-sources
+      - name: Audit locked runtime dependencies
+        run: |
+          uv export --frozen --no-dev --no-emit-project \
+            --output-file "${RUNNER_TEMP}/runtime-requirements.txt"
+          uv run --no-sync pip-audit --requirement "${RUNNER_TEMP}/runtime-requirements.txt"
+      - name: Smoke-test built artifact with locked dependencies
+        shell: bash
+        run: |
+          wheel_path="$(find dist -maxdepth 1 -name 'documentation_mcp-*.whl' -print -quit)"
+          test -n "${wheel_path}"
+          uvx --isolated --refresh \
+            --with-requirements "${RUNNER_TEMP}/runtime-requirements.txt" \
+            --from "${wheel_path}" \
+            documentation-mcp --help
+      - name: Execute exact documented installation smoke test
+        run: uv run --no-sync python scripts/verify_documented_install.py
+      - name: Reject sensitive tracked files
+        shell: bash
+        run: |
+          if git ls-files | grep -Ei '(^|/)\.env(\.[^/]*)?(/|$)|(^|/)(config\.toml|results|benchmark-results)(/|$)|\.(crt|key|pem|p12)$'; then
+            echo "Sensitive or local-only files are tracked."
+            exit 1
+          fi
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

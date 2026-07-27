@@ -1,17 +1,21 @@
 [project]
-name = "mcp-obsidian"
-version = "0.2.2"
-description = "MCP server to work with Obsidian via the remote REST plugin"
+name = "documentation-mcp"
+version = "0.1.0a1"
+description = "Read-only, scope-enforced MCP server for structured Markdown documentation"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
- "mcp>=1.1.0",
- "python-dotenv>=1.0.1",
- "requests>=2.32.3",
+ "mcp>=1.28.1,<2",
+ "PyYAML>=6.0.2",
+ "requests>=2.33.0",
 ]
 [[project.authors]]
 name = "Markus Pfundstein"
 email = "markus@life-electronic.nl"
+
+[project.urls]
+Repository = "https://github.com/julZanozina/documentation-mcp"
+Upstream = "https://github.com/MarkusPfundstein/mcp-obsidian"
 
 [build-system]
 requires = [ "hatchling",]
@@ -19,6 +23,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "pip-audit>=2.10.1,<3",
     "pyright>=1.1.389",
     "pytest>=8.0",
     "pytest-cov>=7.1.0",
@@ -29,4 +34,4 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 
 [project.scripts]
-mcp-obsidian = "mcp_obsidian:main"
+documentation-mcp = "documentation_mcp:main"
