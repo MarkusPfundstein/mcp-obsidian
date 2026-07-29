@@ -150,9 +150,17 @@ diagnostics in `scope_info` identify skipped sources and reason codes.
 
 `refresh_index` is read-only: it builds a separate candidate index and swaps
 it into service only after the complete bounded build succeeds. A failed
-or traversal-limited refresh preserves the last-known-good snapshot. Candidate
-construction runs outside the MCP event loop, so retrieval tools continue to
-use the active snapshot while `scope_info.refresh.status` is `running`.
+or traversal-limited refresh preserves the last-known-good snapshot. On
+startup, the stdio transport begins before the initial candidate build starts
+in a worker. Until its atomic swap completes, the active index is empty and
+`scope_info.refresh.status` is `running`; clients that require indexed content
+can poll this read-only status. Retrieval tools fail with an explicit,
+retriable `documentation index is not ready` error until the first successful
+index is available; they never turn an incomplete or failed initial build into
+an authoritative empty result. Candidate construction runs outside the MCP
+event loop, so retrieval tools continue to use the active snapshot during
+later refreshes. Each `scope_info` response reports one atomic index-and-refresh
+generation.
 `scope_info.refresh` reports the latest attempt time, duration, status, whether
 the previous snapshot was preserved, skipped-document count, and bounded
 indexing errors. Transient timeouts, connection failures, HTTP 408/425/429

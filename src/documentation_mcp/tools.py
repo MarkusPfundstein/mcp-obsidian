@@ -187,16 +187,28 @@ class ToolService:
         with self._state_lock:
             return self._refresh_info_unlocked()
 
+    def _begin_refresh_unlocked(self) -> None:
+        self._refresh_status = "running"
+        self._last_attempt_at = self._timestamp()
+        self._last_duration_ms = None
+        self._last_refresh_changed = False
+        self._last_known_good_preserved = False
+
+    def begin_initial_refresh(self) -> bool:
+        """Expose startup as running before its worker can receive tool calls."""
+        with self._state_lock:
+            if self._refresh_status != "never":
+                return False
+            self._begin_refresh_unlocked()
+            return True
+
     def refresh_index(self) -> dict[str, Any]:
         with self._refresh_lock:
             started = perf_counter()
             with self._state_lock:
                 settings = self.index.settings
-                self._refresh_status = "running"
-                self._last_attempt_at = self._timestamp()
-                self._last_duration_ms = None
-                self._last_refresh_changed = False
-                self._last_known_good_preserved = False
+                if self._refresh_status != "running":
+                    self._begin_refresh_unlocked()
             candidate = DocumentationIndex(settings)
             fatal_reason: str | None = None
             try:
@@ -265,10 +277,15 @@ class ToolService:
             return self.refresh_index()
         with self._state_lock:
             index = self.index
-        if name == "scope_info":
-            info = index.scope_info()
-            info["refresh"] = self.refresh_info()
-            return info
+            if name == "scope_info":
+                info = index.scope_info()
+                info["refresh"] = self._refresh_info_unlocked()
+                return info
+            if not self._has_successful_refresh:
+                raise RuntimeError(
+                    "documentation index is not ready "
+                    f"(refresh status: {self._refresh_status})"
+                )
         if name == "search_docs":
             requested_characters = arguments.get(
                 "max_total_characters",

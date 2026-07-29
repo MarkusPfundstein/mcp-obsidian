@@ -26,7 +26,6 @@ def configure(settings: Settings, source: DocumentationSource | None = None) -> 
     documentation_source = source or ObsidianSource(settings)
     index = DocumentationIndex(settings)
     service = ToolService(index, documentation_source)
-    service.refresh_index()
     _service = service
     return _service
 
@@ -78,8 +77,18 @@ async def run() -> None:
     from mcp.server.stdio import stdio_server
 
     async with stdio_server() as (read_stream, write_stream):
-        await app.run(
-            read_stream,
-            write_stream,
-            app.create_initialization_options(),
+        service = get_service()
+        initial_refresh = (
+            asyncio.create_task(asyncio.to_thread(service.refresh_index))
+            if service.begin_initial_refresh()
+            else None
         )
+        try:
+            await app.run(
+                read_stream,
+                write_stream,
+                app.create_initialization_options(),
+            )
+        finally:
+            if initial_refresh is not None:
+                await initial_refresh

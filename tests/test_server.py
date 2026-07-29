@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from dataclasses import replace
-from threading import Event
+from threading import Event, Thread
 from typing import Any
 
 import pytest
@@ -19,10 +20,90 @@ def _run(awaitable):
     return asyncio.run(awaitable)
 
 
+def _configure(settings: Any, source: Any):
+    service = server.configure(settings, source)
+    service.refresh_index()
+    return service
+
+
 def test_exact_read_only_tool_surface():
     names = {tool.name for tool in tool_definitions()}
     assert names == TOOL_NAMES
     assert all(term not in name for name in names for term in ("append", "patch", "put", "delete"))
+
+
+def test_configure_exposes_scope_but_rejects_retrieval_without_reading_the_source(
+    settings,
+    documents,
+):
+    class UnreadSource(MemorySource):
+        def iter_markdown_files(self, *, deadline=None):
+            raise AssertionError("configure must not read the documentation source")
+
+    service = server.configure(settings, UnreadSource(documents))
+
+    scope_response = _run(server.call_tool("scope_info", {}))
+    scope = json.loads(scope_response[0].text)
+
+    assert service.index.documents == {}
+    assert scope["refresh"]["status"] == "never"
+    assert scope["index_snapshot"] == service.index.snapshot
+    with pytest.raises(RuntimeError, match="documentation index is not ready"):
+        _run(server.call_tool("search_docs", {"query": "retry default"}))
+
+
+def test_run_starts_stdio_before_initial_refresh_worker(
+    monkeypatch,
+    settings,
+    documents,
+):
+    import mcp.server.stdio as mcp_stdio
+
+    transport_started = Event()
+    refresh_started = Event()
+    release_refresh = Event()
+
+    class BlockingInitialSource(MemorySource):
+        def iter_markdown_files(self, *, deadline=None):
+            assert transport_started.is_set()
+            refresh_started.set()
+            if not release_refresh.wait(timeout=5):
+                raise SourceError("test initial refresh was not released")
+            return super().iter_markdown_files(deadline=deadline)
+
+    service = server.configure(settings, BlockingInitialSource(documents))
+
+    @asynccontextmanager
+    async def fake_stdio_server():
+        transport_started.set()
+        yield object(), object()
+
+    async def fake_app_run(read_stream, write_stream, initialization_options):
+        del read_stream, write_stream, initialization_options
+        try:
+            assert await asyncio.to_thread(refresh_started.wait, 1)
+            scope_response: Any = await server.call_tool("scope_info", {})
+            scope = json.loads(scope_response[0].text)
+            assert scope["refresh"]["status"] == "running"
+            assert scope["index_snapshot"] == service.index.snapshot
+            with pytest.raises(
+                RuntimeError,
+                match="documentation index is not ready",
+            ):
+                await server.call_tool(
+                    "search_docs",
+                    {"query": "retry default"},
+                )
+        finally:
+            release_refresh.set()
+
+    monkeypatch.setattr(mcp_stdio, "stdio_server", fake_stdio_server)
+    monkeypatch.setattr(server.app, "run", fake_app_run)
+
+    _run(server.run())
+
+    assert service.refresh_info()["status"] == "success"
+    assert service.index.documents
 
 
 def test_configure_and_call_search(settings, documents):
@@ -30,7 +111,7 @@ def test_configure_and_call_search(settings, documents):
         settings,
         limits=replace(settings.limits, max_total_characters=1_000),
     )
-    server.configure(bounded, MemorySource(documents))
+    _configure(bounded, MemorySource(documents))
     response = _run(server.call_tool("search_docs", {"query": "retry default"}))
     payload = json.loads(response[0].text)
     assert payload["retrieved_chunk_count"] >= 1
@@ -52,7 +133,7 @@ def test_search_budget_applies_to_serialized_json_with_escaping_and_unicode(sett
             f"{adversarial_text}"
         )
     }
-    server.configure(bounded, MemorySource(documents))
+    _configure(bounded, MemorySource(documents))
 
     response = _run(
         server.call_tool(
@@ -82,7 +163,7 @@ def test_role_aware_search_reserves_serialized_space_for_complementary_evidence(
         settings,
         limits=replace(settings.limits, max_total_characters=4_200),
     )
-    server.configure(bounded, MemorySource(routing_documents))
+    _configure(bounded, MemorySource(routing_documents))
 
     response = _run(
         server.call_tool(
@@ -103,7 +184,7 @@ def test_role_aware_search_reserves_serialized_space_for_complementary_evidence(
 
 
 def test_search_rejects_budget_smaller_than_response_envelope(settings, documents):
-    server.configure(settings, MemorySource(documents))
+    _configure(settings, MemorySource(documents))
 
     with pytest.raises(RuntimeError, match="too small for the search response envelope"):
         _run(
@@ -115,7 +196,7 @@ def test_search_rejects_budget_smaller_than_response_envelope(settings, document
 
 
 def test_scope_reports_read_only_access(settings, documents):
-    server.configure(settings, MemorySource(documents))
+    _configure(settings, MemorySource(documents))
     response = _run(server.call_tool("scope_info", {}))
     payload = json.loads(response[0].text)
     assert payload["access"] == "read-only"
@@ -137,7 +218,7 @@ def test_failed_refresh_atomically_preserves_last_known_good_index(settings):
     source = RefreshableSource(
         {"Documentation/old.md": "# Old\n\nstable searchable content"}
     )
-    service = server.configure(bounded, source)
+    service = _configure(bounded, source)
     original_index = service.index
     original_snapshot = original_index.snapshot
 
@@ -175,7 +256,7 @@ def test_incomplete_refresh_preserves_last_known_good_index(settings):
     source = MemorySource(
         {"Documentation/original.md": "# Original\n\nstable searchable content"}
     )
-    service = server.configure(bounded, source)
+    service = _configure(bounded, source)
     original_index = service.index
     original_snapshot = original_index.snapshot
 
@@ -208,7 +289,7 @@ def test_failed_refresh_preserves_diagnostics_recorded_before_fatal_error(settin
             "Documentation/b-fatal.md": "ignored",
         }
     )
-    service = server.configure(settings, source)
+    service = _configure(settings, source)
     payload = service.refresh_info()
 
     assert payload["status"] == "failed"
@@ -237,7 +318,7 @@ def test_search_uses_active_index_while_refresh_builds_in_worker(settings):
     source = BlockingSource(
         {"Documentation/old.md": "# Old\n\nstable searchable content"}
     )
-    server.configure(bounded, source)
+    _configure(bounded, source)
     source.files = {"Documentation/new.md": "# New\n\nfresh replacement content"}
     source.block = True
 
@@ -267,12 +348,68 @@ def test_search_uses_active_index_while_refresh_builds_in_worker(settings):
     _run(exercise_concurrent_refresh())
 
 
+def test_scope_info_cannot_mix_index_and_refresh_generations(
+    monkeypatch,
+    settings,
+):
+    bounded = replace(settings, allowed_statuses=(), allowed_types=())
+    source = MemorySource(
+        {"Documentation/old.md": "# Old\n\nstable searchable content"}
+    )
+    service = _configure(bounded, source)
+    original_index = service.index
+    original_snapshot = original_index.snapshot
+    scope_started = Event()
+    release_scope = Event()
+    refresh_finished = Event()
+    scope_result: dict[str, Any] = {}
+    refresh_result: dict[str, Any] = {}
+    original_scope_info = original_index.scope_info
+
+    def blocking_scope_info() -> dict[str, Any]:
+        payload = original_scope_info()
+        scope_started.set()
+        if not release_scope.wait(timeout=5):
+            raise AssertionError("test scope_info was not released")
+        return payload
+
+    def read_scope() -> None:
+        scope_result.update(service.dispatch("scope_info", {}))
+
+    def run_refresh() -> None:
+        try:
+            refresh_result.update(service.refresh_index())
+        finally:
+            refresh_finished.set()
+
+    monkeypatch.setattr(original_index, "scope_info", blocking_scope_info)
+    scope_thread = Thread(target=read_scope)
+    scope_thread.start()
+    assert scope_started.wait(timeout=1)
+
+    source.files = {"Documentation/new.md": "# New\n\nfresh replacement content"}
+    refresh_thread = Thread(target=run_refresh)
+    refresh_thread.start()
+    try:
+        assert not refresh_finished.wait(timeout=0.1)
+    finally:
+        release_scope.set()
+    scope_thread.join(timeout=2)
+    refresh_thread.join(timeout=2)
+
+    assert not scope_thread.is_alive()
+    assert not refresh_thread.is_alive()
+    assert scope_result["index_snapshot"] == original_snapshot
+    assert scope_result["refresh"]["status"] == "success"
+    assert refresh_result["index_snapshot"] != original_snapshot
+
+
 def test_initial_source_failure_starts_with_diagnosed_empty_index(settings):
     class UnavailableSource(MemorySource):
         def iter_markdown_files(self, *, deadline=None):
             raise SourceError("source unavailable")
 
-    service = server.configure(settings, UnavailableSource({}))
+    service = _configure(settings, UnavailableSource({}))
     response = _run(server.call_tool("scope_info", {}))
     payload = json.loads(response[0].text)
 
@@ -281,6 +418,8 @@ def test_initial_source_failure_starts_with_diagnosed_empty_index(settings):
     assert payload["refresh"]["last_success_at"] is None
     assert payload["refresh"]["last_known_good_preserved"] is False
     assert payload["refresh"]["indexing_errors"]["count"] == 1
+    with pytest.raises(RuntimeError, match="documentation index is not ready"):
+        _run(server.call_tool("search_docs", {"query": "anything"}))
 
 
 def test_refresh_reports_skipped_documents_and_indexing_errors(settings):
@@ -293,7 +432,7 @@ def test_refresh_reports_skipped_documents_and_indexing_errors(settings):
             "---\ndocument_id: duplicate\n---\n# Second\n\ntwo"
         ),
     }
-    server.configure(bounded, MemorySource(duplicate_documents))
+    _configure(bounded, MemorySource(duplicate_documents))
     response = _run(server.call_tool("scope_info", {}))
     payload = json.loads(response[0].text)
 
@@ -306,14 +445,14 @@ def test_refresh_reports_skipped_documents_and_indexing_errors(settings):
 
 @pytest.mark.parametrize("tool_name", ("get_document_metadata", "get_related_documents"))
 def test_metadata_tools_never_serialize_private_frontmatter(tool_name, settings, documents):
-    server.configure(settings, MemorySource(documents))
+    _configure(settings, MemorySource(documents))
     response = _run(server.call_tool(tool_name, {"document_id": "preferences"}))
     assert "must-not-leak" not in response[0].text
     assert "frontmatter" not in response[0].text
 
 
 def test_invalid_arguments_and_unknown_tools_are_rejected(settings, documents):
-    server.configure(settings, MemorySource(documents))
+    _configure(settings, MemorySource(documents))
     with pytest.raises(RuntimeError, match="object"):
         _run(server.call_tool("scope_info", None))
     with pytest.raises(RuntimeError, match="Unknown tool"):
