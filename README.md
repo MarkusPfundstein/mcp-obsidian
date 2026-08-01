@@ -27,6 +27,11 @@ The use prompts like this:
 - Search for all files where Azure CosmosDb is mentioned and quickly explain to me the context in which it is mentioned
 - Summarize the last meeting notes and put them into a new note 'summary meeting.md'. Add an introduction so that I can send it via email.
 
+## Requirements
+
+- Python >= 3.11
+- `mcp` Python SDK `>=1.1.0,<2.0.0` (pinned in `pyproject.toml`). `mcp-obsidian` currently registers its tool handlers via the `mcp` 1.x low-level `Server` API (`@app.list_tools()` / `@app.call_tool()`), which was removed in `mcp` 2.0. Installing with an unconstrained `mcp>=2.0` will crash at import with `AttributeError: 'Server' object has no attribute 'list_tools'`.
+
 ## Configuration
 
 ### Obsidian REST API Key
