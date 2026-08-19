@@ -2,7 +2,12 @@ services:
   mcp-obsidian:
     build: .
     image: mcp-obsidian:latest
+    # Auto-start with the Docker daemon (e.g. on host boot) and keep
+    # restarting on crash; only a manual `docker compose stop` keeps it down.
+    restart: unless-stopped
     # MCP talks JSON-RPC over stdio, so stdin must stay open and unbuffered.
+    # stdin_open keeps the container alive under `up -d` even with nothing
+    # attached yet (otherwise it'd hit EOF on stdin and exit immediately).
     # No TTY: run it as `docker compose run --rm -T mcp-obsidian`.
     stdin_open: true
     tty: false
