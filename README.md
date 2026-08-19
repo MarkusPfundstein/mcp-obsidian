@@ -128,6 +128,51 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 ```
 </details>
 
+## Docker
+
+You can run the server in a container instead of installing `uv`/Python locally.
+
+1. Copy `.env.example` to `.env` and fill in your Obsidian REST API key:
+```bash
+cp .env.example .env
+```
+By default `OBSIDIAN_HOST` is set to `host.docker.internal`, which resolves to
+your host machine from inside the container (works on Linux, Mac and Windows).
+
+2. Build the image:
+```bash
+docker compose build
+```
+
+3. Point your MCP client at the container. Since MCP speaks JSON-RPC over
+stdio, the client must run it with stdin attached and no pseudo-TTY — use
+`docker compose run --rm -T`, not `docker compose up`:
+
+```json
+{
+  "mcpServers": {
+    "mcp-obsidian": {
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "<dir_to>/mcp-obsidian/docker-compose.yml",
+        "run",
+        "--rm",
+        "-T",
+        "mcp-obsidian"
+      ]
+    }
+  }
+}
+```
+
+You can also run it manually to sanity-check the container starts:
+```bash
+docker compose run --rm -T mcp-obsidian
+```
+(it will sit waiting for a JSON-RPC message on stdin; Ctrl+C to exit)
+
 ## Development
 
 ### Building

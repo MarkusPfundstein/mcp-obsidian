@@ -1,0 +1,19 @@
+services:
+  mcp-obsidian:
+    build: .
+    image: mcp-obsidian:latest
+    # MCP talks JSON-RPC over stdio, so stdin must stay open and unbuffered.
+    # No TTY: run it as `docker compose run --rm -T mcp-obsidian`.
+    stdin_open: true
+    tty: false
+    extra_hosts:
+      # Lets the container reach Obsidian's Local REST API on the host.
+      # Docker Desktop (Mac/Windows) provides host.docker.internal natively;
+      # this entry makes it resolve on Linux too (Docker 20.10+).
+      - "host.docker.internal:host-gateway"
+    environment:
+      # OBSIDIAN_API_KEY is required; the server exits with a clear error if
+      # it's unset. Not enforced here so `docker compose build` doesn't need it.
+      OBSIDIAN_API_KEY: ${OBSIDIAN_API_KEY:-}
+      OBSIDIAN_HOST: ${OBSIDIAN_HOST:-host.docker.internal}
+      OBSIDIAN_PORT: ${OBSIDIAN_PORT:-27124}
