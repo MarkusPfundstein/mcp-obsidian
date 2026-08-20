@@ -8,9 +8,9 @@ class Obsidian():
     def __init__(
             self, 
             api_key: str,
-            protocol: str = os.getenv('OBSIDIAN_PROTOCOL', 'https').lower(),
-            host: str = str(os.getenv('OBSIDIAN_HOST', '127.0.0.1')),
-            port: int = int(os.getenv('OBSIDIAN_PORT', '27124')),
+            protocol: str,
+            host: str,
+            port: int,
             verify_ssl: bool = False,
         ):
         self.api_key = api_key
