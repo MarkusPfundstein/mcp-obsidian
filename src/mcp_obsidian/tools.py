@@ -627,15 +627,15 @@ class PeriodicNotesToolHandler(ToolHandler):
                 text=content
             )
         ]
-        
-class RecentPeriodicNotesToolHandler(ToolHandler):
+
+class PeriodicNoteForDateToolHandler(ToolHandler):
     def __init__(self):
-        super().__init__("obsidian_get_recent_periodic_notes")
+        super().__init__("obsidian_get_periodic_note_for_date")
 
     def get_tool_description(self):
         return Tool(
             name=self.name,
-            description="Get most recent periodic notes for the specified period type.",
+            description="Get the periodic note for a specific date.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -644,50 +644,71 @@ class RecentPeriodicNotesToolHandler(ToolHandler):
                         "description": "The period type (daily, weekly, monthly, quarterly, yearly)",
                         "enum": ["daily", "weekly", "monthly", "quarterly", "yearly"]
                     },
-                    "limit": {
+                    "year": {
                         "type": "integer",
-                        "description": "Maximum number of notes to return (default: 5)",
-                        "default": 5,
-                        "minimum": 1,
-                        "maximum": 50
+                        "description": "The year of the date for which to retrieve the periodic note.",
+                        "minimum": 1
                     },
-                    "include_content": {
-                        "type": "boolean",
-                        "description": "Whether to include note content (default: false)",
-                        "default": False
+                    "month": {
+                        "type": "integer",
+                        "description": "The month of the date for which to retrieve the periodic note.",
+                        "minimum": 1,
+                        "maximum": 12
+                    },
+                    "day": {
+                        "type": "integer",
+                        "description": "The day of the date for which to retrieve the periodic note.",
+                        "minimum": 1,
+                        "maximum": 31
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "The type of data to get ('content' or 'metadata'). 'content' returns just the content in Markdown format. 'metadata' includes note metadata (including paths, tags, etc.) and the content.",
+                        "default": "content",
+                        "enum": ["content", "metadata"]
                     }
                 },
-                "required": ["period"]
+                "required": ["period", "year", "month", "day"]
             }
         )
 
     def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
-        if "period" not in args:
-            raise RuntimeError("period argument missing in arguments")
+        required_args = ["period", "year", "month", "day"]
+        missing_args = [arg for arg in required_args if arg not in args]
+        if missing_args:
+            raise RuntimeError(f"Missing required arguments: {', '.join(missing_args)}")
 
         period = args["period"]
         valid_periods = ["daily", "weekly", "monthly", "quarterly", "yearly"]
         if period not in valid_periods:
             raise RuntimeError(f"Invalid period: {period}. Must be one of: {', '.join(valid_periods)}")
 
-        limit = args.get("limit", 5)
-        if not isinstance(limit, int) or limit < 1:
-            raise RuntimeError(f"Invalid limit: {limit}. Must be a positive integer")
-            
-        include_content = args.get("include_content", False)
-        if not isinstance(include_content, bool):
-            raise RuntimeError(f"Invalid include_content: {include_content}. Must be a boolean")
+        year = args["year"]
+        month = args["month"]
+        day = args["day"]
+        for field_name, value in (("year", year), ("month", month), ("day", day)):
+            if not isinstance(value, int):
+                raise RuntimeError(f"Invalid {field_name}: {value}. Must be an integer")
+        if month < 1 or month > 12:
+            raise RuntimeError(f"Invalid month: {month}. Must be between 1 and 12")
+        if day < 1 or day > 31:
+            raise RuntimeError(f"Invalid day: {day}. Must be between 1 and 31")
+
+        type = args["type"] if "type" in args else "content"
+        valid_types = ["content", "metadata"]
+        if type not in valid_types:
+            raise RuntimeError(f"Invalid type: {type}. Must be one of: {', '.join(valid_types)}")
 
         api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
-        results = api.get_recent_periodic_notes(period, limit, include_content)
+        content = api.get_periodic_note_for_date(period, year, month, day, type)
 
         return [
             TextContent(
                 type="text",
-                text=json.dumps(results, indent=2)
+                text=content
             )
         ]
-        
+
 class RecentChangesToolHandler(ToolHandler):
     def __init__(self):
         super().__init__("obsidian_get_recent_changes")

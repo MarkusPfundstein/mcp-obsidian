@@ -311,34 +311,38 @@ class Obsidian():
 
         return self._safe_call(call_fn)
     
-    def get_recent_periodic_notes(self, period: str, limit: int = 5, include_content: bool = False) -> Any:
-        """Get most recent periodic notes for the specified period type.
-        
+    def get_periodic_note_for_date(
+        self,
+        period: str,
+        year: int,
+        month: int,
+        day: int,
+        type: str = "content",
+    ) -> Any:
+        """Get the periodic note for a specific date.
+
         Args:
             period: The period type (daily, weekly, monthly, quarterly, yearly)
-            limit: Maximum number of notes to return (default: 5)
-            include_content: Whether to include note content (default: False)
-            
+            year: Four-digit year
+            month: Month number (1-12)
+            day: Day of month (1-31)
+            type: Type of the data to get ('content' or 'metadata').
+                'content' returns just the content in Markdown format.
+                'metadata' includes note metadata (including paths, tags, etc.) and the content.
+
         Returns:
-            List of recent periodic notes
+            Content of the periodic note
         """
-        url = f"{self.get_base_url()}/periodic/{period}/recent"
-        params = {
-            "limit": limit,
-            "includeContent": include_content
-        }
-        
+        url = f"{self.get_base_url()}/periodic/{period}/{year}/{month}/{day}/"
+
         def call_fn():
-            response = requests.get(
-                url, 
-                headers=self._get_headers(), 
-                params=params,
-                verify=self.verify_ssl, 
-                timeout=self.timeout
-            )
+            headers = self._get_headers()
+            if type == "metadata":
+                headers["Accept"] = "application/vnd.olrapi.note+json"
+            response = requests.get(url, headers=headers, verify=self.verify_ssl, timeout=self.timeout)
             response.raise_for_status()
-            
-            return response.json()
+
+            return response.text
 
         return self._safe_call(call_fn)
     

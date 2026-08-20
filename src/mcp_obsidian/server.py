@@ -54,7 +54,7 @@ add_tool_handler(tools.SearchByTagToolHandler())
 add_tool_handler(tools.GetFrontmatterToolHandler())
 add_tool_handler(tools.BatchGetFileContentsToolHandler())
 add_tool_handler(tools.PeriodicNotesToolHandler())
-add_tool_handler(tools.RecentPeriodicNotesToolHandler())
+add_tool_handler(tools.PeriodicNoteForDateToolHandler())
 add_tool_handler(tools.RecentChangesToolHandler())
 
 @app.list_tools()
