@@ -342,7 +342,56 @@ class PutContentToolHandler(ToolHandler):
                text=f"Successfully uploaded content to {args['filepath']}"
            )
        ]
-   
+
+
+class StrReplaceToolHandler(ToolHandler):
+    def __init__(self):
+        super().__init__("obsidian_str_replace")
+
+    def get_tool_description(self):
+        return Tool(
+            name=self.name,
+            description=(
+                "Replace exactly one occurrence of old_str with new_str in a vault file. "
+                "Fails with a clear error if old_str is not found, or if it appears more "
+                "than once (to prevent ambiguous edits). Use this for precise, surgical "
+                "edits to existing notes — for full rewrites use obsidian_put_content."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "filepath": {
+                        "type": "string",
+                        "description": "Path to the file (relative to vault root)",
+                        "format": "path"
+                    },
+                    "old_str": {
+                        "type": "string",
+                        "description": "Exact string to find. Must appear exactly once in the file."
+                    },
+                    "new_str": {
+                        "type": "string",
+                        "description": "Replacement string."
+                    }
+                },
+                "required": ["filepath", "old_str", "new_str"]
+            }
+        )
+
+    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+        if "filepath" not in args or "old_str" not in args or "new_str" not in args:
+            raise RuntimeError("filepath, old_str and new_str arguments required")
+
+        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        replaced_chars = api.str_replace(args["filepath"], args["old_str"], args["new_str"])
+
+        return [
+            TextContent(
+                type="text",
+                text=f"Successfully replaced 1 occurrence ({replaced_chars} chars) in {args['filepath']}"
+            )
+        ]
+
 
 class DeleteFileToolHandler(ToolHandler):
    def __init__(self):
