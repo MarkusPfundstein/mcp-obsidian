@@ -342,6 +342,49 @@ class Obsidian():
 
         return self._safe_call(call_fn)
     
+    def rename_file(self, filepath: str, new_filepath: str) -> None:
+        """Rename (move) a markdown file by copying its content then deleting the original.
+
+        Raises if source and destination are the same path, or if the destination
+        already exists. On partial failure (write succeeded, delete failed) the
+        newly written file is cleaned up before re-raising so the vault stays
+        consistent.
+
+        Args:
+            filepath: Current path of the file (relative to vault root)
+            new_filepath: New path for the file (relative to vault root)
+        """
+        if filepath == new_filepath:
+            raise Exception("Source and destination paths are identical")
+
+        existing = self._file_exists(new_filepath)
+        if existing:
+            raise Exception(f"Destination already exists: {new_filepath}")
+
+        content = self.get_file_contents(filepath)
+        self.put_content(new_filepath, content)
+        try:
+            self.delete_file(filepath)
+        except Exception as delete_err:
+            try:
+                self.delete_file(new_filepath)
+            except Exception:
+                pass
+            raise Exception(
+                f"Rename failed: could not delete source '{filepath}' after writing "
+                f"destination '{new_filepath}'. Compensating delete attempted. "
+                f"Original error: {delete_err}"
+            )
+
+    def _file_exists(self, filepath: str) -> bool:
+        """Return True if the file exists in the vault, False if not found."""
+        url = f"{self.get_base_url()}/vault/{filepath}"
+        try:
+            response = requests.get(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
+            return response.status_code == 200
+        except requests.exceptions.RequestException:
+            return False
+
     def get_recent_changes(self, limit: int = 10, days: int = 90) -> Any:
         """Get recently modified files in the vault.
         
