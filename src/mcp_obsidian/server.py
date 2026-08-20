@@ -1,7 +1,6 @@
 import json
 import logging
 from collections.abc import Sequence
-from functools import lru_cache
 from typing import Any
 import os
 from dotenv import load_dotenv
@@ -23,9 +22,9 @@ from . import tools
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mcp-obsidian")
 
-api_key = os.getenv("OBSIDIAN_API_KEY")
+api_key = os.getenv("OBSIDIAN_API_KEY", "").strip()
 if not api_key:
-    raise ValueError(f"OBSIDIAN_API_KEY environment variable required. Working directory: {os.getcwd()}")
+    raise ValueError("OBSIDIAN_API_KEY environment variable required.")
 
 app = Server("mcp-obsidian")
 
@@ -78,8 +77,8 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent | ImageCo
     try:
         return tool_handler.run_tool(arguments)
     except Exception as e:
-        logger.error(str(e))
-        raise RuntimeError(f"Caught Exception. Error: {str(e)}")
+        logger.error("Tool %s failed: %s", name, e, exc_info=True)
+        raise RuntimeError("Tool execution failed. Check server logs for details.")
 
 
 async def main():
