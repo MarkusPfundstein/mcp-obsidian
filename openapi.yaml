@@ -47,8 +47,7 @@ components:
   securitySchemes:
     apiKeyAuth:
       description: |
-        Find your API Key in your Obsidian settings
-        in the "Local REST API" section under "Plugins".
+        Install the plugin from Obsidian > Settings > Community Plugins > "Local REST API". Enable it. Then, find your API Key in the plugin's settings.
       scheme: "bearer"
       type: "http"
 info:
