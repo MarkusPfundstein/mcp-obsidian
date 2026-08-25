@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  package:
+    name: package mcpb
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+
+      - name: Install mcpb CLI
+        run: npm install -g @anthropic-ai/mcpb
+
+      - name: Validate manifest
+        run: mcpb validate manifest.json
+
+      - name: Pack extension
+        run: mcpb pack . mcp-obsidian.mcpb
+
+      - name: Upload as workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: mcp-obsidian-mcpb
+          path: '*.mcpb'
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: '*.mcpb'
+          fail_on_unmatched_files: true
+          body_path: .github/release-template.md
+          generate_release_notes: true
+          make_latest: true

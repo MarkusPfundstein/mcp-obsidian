@@ -1,0 +1,86 @@
+{
+  "manifest_version": "0.4",
+  "name": "mcp-obsidian",
+  "display_name": "Obsidian",
+  "version": "0.2.2",
+  "description": "Interact with your Obsidian vault via the Local REST API community plugin",
+  "long_description": "Lets Claude list, read, search, and edit notes in your Obsidian vault by talking to the Local REST API community plugin. Requires the plugin to be installed and enabled in Obsidian, with its API key configured below.",
+  "author": {
+    "name": "Markus Pfundstein",
+    "email": "markus@life-electronic.nl"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MarkusPfundstein/mcp-obsidian"
+  },
+  "homepage": "https://github.com/MarkusPfundstein/mcp-obsidian",
+  "documentation": "https://github.com/MarkusPfundstein/mcp-obsidian#readme",
+  "support": "https://github.com/MarkusPfundstein/mcp-obsidian/issues",
+  "server": {
+    "type": "uv",
+    "entry_point": "src/mcp_obsidian/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "mcp-obsidian"
+      ],
+      "env": {
+        "OBSIDIAN_API_KEY": "${user_config.obsidian_api_key}",
+        "OBSIDIAN_HOST": "${user_config.obsidian_host}",
+        "OBSIDIAN_PORT": "${user_config.obsidian_port}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "list_files_in_vault", "description": "Lists all files and directories in the root directory of your Obsidian vault" },
+    { "name": "list_files_in_dir", "description": "Lists all files and directories in a specific Obsidian directory" },
+    { "name": "get_file_contents", "description": "Return the content of a single file in your vault" },
+    { "name": "batch_get_file_contents", "description": "Return the contents of multiple files in your vault" },
+    { "name": "search", "description": "Search for documents matching a specified text query across all files in the vault" },
+    { "name": "complex_search", "description": "Search for documents using a JsonLogic query" },
+    { "name": "search_by_tag", "description": "Search for notes tagged with a specific tag" },
+    { "name": "patch_content", "description": "Insert content into an existing note relative to a heading, block reference, or frontmatter field" },
+    { "name": "append_content", "description": "Append content to a new or existing file in the vault" },
+    { "name": "put_content", "description": "Create or overwrite a file in the vault" },
+    { "name": "delete_file", "description": "Delete a file or directory from your vault" },
+    { "name": "get_frontmatter", "description": "Get the frontmatter of a note" },
+    { "name": "get_periodic_note", "description": "Get the current periodic note for the specified period" },
+    { "name": "get_recent_periodic_notes", "description": "Get the most recent periodic notes for the specified period type" },
+    { "name": "get_recent_changes", "description": "Get recently modified files in the vault" }
+  ],
+  "keywords": ["obsidian", "notes", "vault", "knowledge-base", "markdown"],
+  "license": "MIT",
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.11"
+    }
+  },
+  "user_config": {
+    "obsidian_api_key": {
+      "type": "string",
+      "title": "Obsidian API Key",
+      "description": "API key from the Local REST API plugin settings in Obsidian",
+      "sensitive": true,
+      "required": true
+    },
+    "obsidian_host": {
+      "type": "string",
+      "title": "Obsidian Host",
+      "description": "Host where the Local REST API plugin is listening",
+      "default": "127.0.0.1",
+      "required": false
+    },
+    "obsidian_port": {
+      "type": "number",
+      "title": "Obsidian Port",
+      "description": "Port where the Local REST API plugin is listening",
+      "default": 27124,
+      "required": false
+    }
+  }
+}

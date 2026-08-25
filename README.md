@@ -133,6 +133,16 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 ```
 </details>
 
+### Claude Desktop Extension (MCPB)
+
+This repo can also be packaged as a Claude Desktop extension (`.mcpb` bundle), so it can be installed by double-clicking the file instead of hand-editing `claude_desktop_config.json`.
+
+```bash
+npx @anthropic-ai/mcpb pack . mcp-obsidian.mcpb
+```
+
+Then open `mcp-obsidian.mcpb` with Claude Desktop and fill in your Obsidian API key, host, and port when prompted. The bundle uses the `uv` runtime (`server.type: "uv"` in `manifest.json`), so Claude Desktop resolves dependencies from `pyproject.toml`/`uv.lock` itself — no need to vendor packages.
+
 ## Development
 
 ### Building
