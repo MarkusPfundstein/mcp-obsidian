@@ -171,11 +171,16 @@ class Obsidian():
         # PATCH (error 40012) — its PATCH parser only accepts the plain
         # 'text/markdown' form. We still send the body as utf-8 bytes so the
         # encoding is unambiguous on the wire.
+        # NOTE: Local REST API >= 5.0.0 requires an explicit
+        # 'Markdown-Patch-Version' header (error 40084 otherwise); '1' selects
+        # the header-driven format used here. Older plugin versions ignore
+        # unknown headers, so this is backward-compatible.
         headers = self._get_headers() | {
             'Content-Type': 'text/markdown',
             'Operation': operation,
             'Target-Type': target_type,
-            'Target': urllib.parse.quote(target)
+            'Target': urllib.parse.quote(target),
+            'Markdown-Patch-Version': '1'
         }
 
         def call_fn():

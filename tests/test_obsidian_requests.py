@@ -190,3 +190,16 @@ def test_get_batch_file_contents_includes_successes_and_errors():
     assert "# a.md\n\nalpha\n\n---\n\n" in result
     assert "# b.md\n\nError reading file: missing\n\n---\n\n" in result
     assert "# c.md\n\ngamma\n\n---\n\n" in result
+
+
+def test_patch_content_sends_markdown_patch_version_header():
+    """Local REST API >= 5.0.0 rejects PATCH without an explicit
+    Markdown-Patch-Version header (error 40084)."""
+    api = _make_obsidian()
+    with patch("mcp_obsidian.obsidian.requests.patch", return_value=_json_response({})) as mock_patch:
+        api.patch_content("f.md", "append", "heading", "A::B", "x")
+
+    headers = mock_patch.call_args.kwargs["headers"]
+    assert headers["Markdown-Patch-Version"] == "1"
+    assert headers["Operation"] == "append"
+    assert headers["Target-Type"] == "heading"
