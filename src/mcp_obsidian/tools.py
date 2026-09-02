@@ -51,7 +51,7 @@ class ListFilesInVaultToolHandler(ToolHandler):
         return [
             TextContent(
                 type="text",
-                text=json.dumps(files, indent=2)
+                text=json.dumps(files, indent=2, ensure_ascii=False)
             )
         ]
     
@@ -87,7 +87,7 @@ class ListFilesInDirToolHandler(ToolHandler):
         return [
             TextContent(
                 type="text",
-                text=json.dumps(files, indent=2)
+                text=json.dumps(files, indent=2, ensure_ascii=False)
             )
         ]
     
@@ -123,7 +123,7 @@ class GetFileContentsToolHandler(ToolHandler):
         return [
             TextContent(
                 type="text",
-                text=json.dumps(content, indent=2)
+                text=content
             )
         ]
     
@@ -185,7 +185,7 @@ class SearchToolHandler(ToolHandler):
         return [
             TextContent(
                 type="text",
-                text=json.dumps(formatted_results, indent=2)
+                text=json.dumps(formatted_results, indent=2, ensure_ascii=False)
             )
         ]
     
@@ -447,7 +447,7 @@ class ComplexSearchToolHandler(ToolHandler):
        return [
            TextContent(
                type="text",
-               text=json.dumps(results, indent=2)
+               text=json.dumps(results, indent=2, ensure_ascii=False)
            )
        ]
 
@@ -684,7 +684,7 @@ class RecentPeriodicNotesToolHandler(ToolHandler):
         return [
             TextContent(
                 type="text",
-                text=json.dumps(results, indent=2)
+                text=json.dumps(results, indent=2, ensure_ascii=False)
             )
         ]
         
@@ -731,6 +731,6 @@ class RecentChangesToolHandler(ToolHandler):
         return [
             TextContent(
                 type="text",
-                text=json.dumps(results, indent=2)
+                text=json.dumps(results, indent=2, ensure_ascii=False)
             )
         ]
