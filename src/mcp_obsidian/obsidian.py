@@ -200,7 +200,23 @@ class Obsidian():
             return None
 
         return self._safe_call(call_fn)
-    
+
+    def str_replace(self, filepath: str, old_str: str, new_str: str) -> int:
+        """Replace exactly one occurrence of old_str with new_str in the given file.
+
+        Returns the number of characters replaced (len(old_str)).
+        Raises ValueError if old_str is not found exactly once.
+        """
+        content = self.get_file_contents(filepath)
+        count = content.count(old_str)
+        if count == 0:
+            raise ValueError(f"old_str not found in {filepath}")
+        if count > 1:
+            raise ValueError(f"old_str found {count} times in {filepath}, must be unique")
+        new_content = content.replace(old_str, new_str, 1)
+        self.put_content(filepath, new_content)
+        return len(old_str)
+
     def delete_file(self, filepath: str) -> Any:
         """Delete a file or directory from the vault.
         
