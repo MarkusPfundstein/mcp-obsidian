@@ -734,3 +734,44 @@ class RecentChangesToolHandler(ToolHandler):
                 text=json.dumps(results, indent=2)
             )
         ]
+
+
+class MoveFileToolHandler(ToolHandler):
+    def __init__(self):
+        super().__init__("obsidian_move_file")
+
+    def get_tool_description(self):
+        return Tool(
+            name=self.name,
+            description="Move or rename a single file within the vault. The destination path determines both location and name.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "description": "Current path of the file (relative to vault root).",
+                        "format": "path"
+                    },
+                    "destination": {
+                        "type": "string",
+                        "description": "New path for the file (relative to vault root). Parent folders are created automatically.",
+                        "format": "path"
+                    }
+                },
+                "required": ["source", "destination"]
+            }
+        )
+
+    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+        if "source" not in args or "destination" not in args:
+            raise RuntimeError("source and destination arguments required")
+
+        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        api.move_file(args["source"], args["destination"])
+
+        return [
+            TextContent(
+                type="text",
+                text=f"Moved '{args['source']}' → '{args['destination']}'"
+            )
+        ]

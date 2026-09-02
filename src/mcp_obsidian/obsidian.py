@@ -218,7 +218,19 @@ class Obsidian():
             return None
             
         return self._safe_call(call_fn)
-    
+
+    def move_file(self, source: str, destination: str) -> None:
+        """Move or rename a single file by copying content then deleting the source.
+
+        Args:
+            source: Current path (relative to vault root).
+            destination: New path (relative to vault root). Parent directories
+                are created automatically by the REST API on PUT.
+        """
+        content = self.get_file_contents(source)
+        self.put_content(destination, content)
+        self.delete_file(source)
+
     def search_json(self, query: dict) -> Any:
         url = f"{self.get_base_url()}/search/"
 
