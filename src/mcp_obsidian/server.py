@@ -4,7 +4,18 @@ from collections.abc import Sequence
 from functools import lru_cache
 from typing import Any
 import os
+import sys
 from dotenv import load_dotenv
+
+# UTF-8 Fix for Windows MCP STDIO communication
+# Based on official MCP SQLite server fix (PR #378)
+if sys.platform == "win32":
+    # Only set if not already configured via environment
+    if not os.environ.get('PYTHONIOENCODING'):
+        # Configure stdin, stdout, stderr to use UTF-8
+        sys.stdin.reconfigure(encoding='utf-8')
+        sys.stdout.reconfigure(encoding='utf-8') 
+        sys.stderr.reconfigure(encoding='utf-8')
 from mcp.server import Server
 from mcp.types import (
     Tool,
