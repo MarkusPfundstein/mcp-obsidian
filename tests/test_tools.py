@@ -239,3 +239,81 @@ def test_recent_changes_handler_uses_defaults():
     handler = tools.RecentChangesToolHandler()
     _, api = _run_handler(handler, "get_recent_changes", {}, [])
     api.get_recent_changes.assert_called_once_with(10, 90)
+
+
+# ---------------------------------------------------------------------------
+# _validate_vault_path — security
+# ---------------------------------------------------------------------------
+
+def test_validate_vault_path_accepts_simple_path():
+    assert tools._validate_vault_path("notes/a.md") == "notes/a.md"
+
+
+def test_validate_vault_path_strips_leading_slash():
+    assert tools._validate_vault_path("/notes/a.md") == "notes/a.md"
+
+
+def test_validate_vault_path_rejects_dotdot_segment():
+    with pytest.raises(RuntimeError, match=r"\.\."):
+        tools._validate_vault_path("../secret.md")
+
+
+def test_validate_vault_path_rejects_dotdot_in_middle():
+    with pytest.raises(RuntimeError, match=r"\.\."):
+        tools._validate_vault_path("notes/../../etc/passwd")
+
+
+def test_validate_vault_path_rejects_backslash_traversal():
+    with pytest.raises(RuntimeError, match=r"\.\."):
+        tools._validate_vault_path("notes\\..\\secret.md")
+
+
+# ---------------------------------------------------------------------------
+# RenameFileToolHandler
+# ---------------------------------------------------------------------------
+
+def test_rename_file_handler_missing_args_raises():
+    handler = tools.RenameFileToolHandler()
+    with pytest.raises(RuntimeError, match="filepath and new_filepath"):
+        handler.run_tool({})
+    with pytest.raises(RuntimeError, match="filepath and new_filepath"):
+        handler.run_tool({"filepath": "a.md"})
+    with pytest.raises(RuntimeError, match="filepath and new_filepath"):
+        handler.run_tool({"new_filepath": "b.md"})
+
+
+def test_rename_file_handler_rejects_non_md_source():
+    handler = tools.RenameFileToolHandler()
+    with pytest.raises(RuntimeError, match="Only .md"):
+        handler.run_tool({"filepath": "image.png", "new_filepath": "image2.png"})
+
+
+def test_rename_file_handler_rejects_non_md_destination():
+    handler = tools.RenameFileToolHandler()
+    with pytest.raises(RuntimeError, match="Only .md"):
+        handler.run_tool({"filepath": "a.md", "new_filepath": "b.txt"})
+
+
+def test_rename_file_handler_rejects_path_traversal_in_source():
+    handler = tools.RenameFileToolHandler()
+    with pytest.raises(RuntimeError, match=r"\.\."):
+        handler.run_tool({"filepath": "../../secret.md", "new_filepath": "b.md"})
+
+
+def test_rename_file_handler_rejects_path_traversal_in_destination():
+    handler = tools.RenameFileToolHandler()
+    with pytest.raises(RuntimeError, match=r"\.\."):
+        handler.run_tool({"filepath": "a.md", "new_filepath": "../outside.md"})
+
+
+def test_rename_file_handler_happy_path():
+    handler = tools.RenameFileToolHandler()
+    result, api = _run_handler(handler, "rename_file", {"filepath": "a.md", "new_filepath": "b.md"})
+    api.rename_file.assert_called_once_with("a.md", "b.md")
+    assert "a.md" in _text(result) and "b.md" in _text(result)
+
+
+def test_rename_file_handler_strips_leading_slash_before_calling_api():
+    handler = tools.RenameFileToolHandler()
+    _, api = _run_handler(handler, "rename_file", {"filepath": "/a.md", "new_filepath": "/sub/b.md"})
+    api.rename_file.assert_called_once_with("a.md", "sub/b.md")

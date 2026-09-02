@@ -688,6 +688,66 @@ class RecentPeriodicNotesToolHandler(ToolHandler):
             )
         ]
         
+def _validate_vault_path(path: str) -> str:
+    """Reject paths that escape the vault root via traversal segments."""
+    normalized = path.lstrip("/")
+    for segment in normalized.replace("\\", "/").split("/"):
+        if segment == "..":
+            raise RuntimeError(f"Invalid path '{path}': '..' segments are not allowed")
+    return normalized
+
+
+class RenameFileToolHandler(ToolHandler):
+    def __init__(self):
+        super().__init__("obsidian_rename_file")
+
+    def get_tool_description(self):
+        return Tool(
+            name=self.name,
+            description=(
+                "Rename or move a markdown file in the vault. The file content is "
+                "preserved; only its path changes. Only .md files are supported. "
+                "Raises an error if the destination already exists."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "filepath": {
+                        "type": "string",
+                        "description": "Current path of the file (relative to vault root)",
+                        "format": "path"
+                    },
+                    "new_filepath": {
+                        "type": "string",
+                        "description": "New path for the file (relative to vault root)",
+                        "format": "path"
+                    }
+                },
+                "required": ["filepath", "new_filepath"]
+            }
+        )
+
+    def run_tool(self, args: dict) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+        if "filepath" not in args or "new_filepath" not in args:
+            raise RuntimeError("filepath and new_filepath arguments required")
+
+        filepath = _validate_vault_path(args["filepath"])
+        new_filepath = _validate_vault_path(args["new_filepath"])
+
+        if not filepath.endswith(".md") or not new_filepath.endswith(".md"):
+            raise RuntimeError("Only .md files are supported by obsidian_rename_file")
+
+        api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
+        api.rename_file(filepath, new_filepath)
+
+        return [
+            TextContent(
+                type="text",
+                text=f"Successfully renamed {filepath} to {new_filepath}"
+            )
+        ]
+
+
 class RecentChangesToolHandler(ToolHandler):
     def __init__(self):
         super().__init__("obsidian_get_recent_changes")
