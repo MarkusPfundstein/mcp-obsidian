@@ -7,7 +7,22 @@ from mcp.types import (
 )
 import json
 import os
+import re
 from . import obsidian
+
+
+def strip_obsidian_comments(text: str) -> str:
+    """Strip Obsidian %% comment %% blocks before sending content to the model.
+
+    Obsidian defines %% ... %% as hidden comments — they are excluded from
+    Reading View, PDF exports, and Obsidian Publish. This function applies the
+    same rule to MCP context, so content the user marked as a comment is not
+    forwarded to the AI without their knowledge.
+
+    Reference: https://help.obsidian.md/Editing+and+formatting/Basic+formatting+syntax#Comments
+    """
+    return re.sub(r"%%.*?%%", "", text, flags=re.DOTALL)
+
 
 api_key = os.getenv("OBSIDIAN_API_KEY", "")
 obsidian_host = os.getenv("OBSIDIAN_HOST", "127.0.0.1")
@@ -123,10 +138,10 @@ class GetFileContentsToolHandler(ToolHandler):
         return [
             TextContent(
                 type="text",
-                text=json.dumps(content, indent=2)
+                text=json.dumps(strip_obsidian_comments(content), indent=2)
             )
         ]
-    
+
 class SearchToolHandler(ToolHandler):
     def __init__(self):
         super().__init__("obsidian_simple_search")
@@ -568,7 +583,7 @@ class BatchGetFileContentsToolHandler(ToolHandler):
             raise RuntimeError("filepaths argument missing in arguments")
 
         api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
-        content = api.get_batch_file_contents(args["filepaths"])
+        content = strip_obsidian_comments(api.get_batch_file_contents(args["filepaths"]))
 
         return [
             TextContent(
