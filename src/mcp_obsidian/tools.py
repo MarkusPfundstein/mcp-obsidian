@@ -80,9 +80,11 @@ class ListFilesInDirToolHandler(ToolHandler):
         if "dirpath" not in args:
             raise RuntimeError("dirpath argument missing in arguments")
 
+        # Normalize dirpath by removing trailing slash for consistent API behavior
+        dirpath = args["dirpath"].rstrip("/")
         api = obsidian.Obsidian(api_key=api_key, host=obsidian_host)
 
-        files = api.list_files_in_dir(args["dirpath"])
+        files = api.list_files_in_dir(dirpath)
 
         return [
             TextContent(
