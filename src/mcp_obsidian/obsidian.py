@@ -2,7 +2,91 @@ import re
 import requests
 import urllib.parse
 import os
+import posixpath
 from typing import Any
+
+
+def validate_vault_path(path: str, is_dir: bool = False) -> str:
+    """Validate and normalize a path relative to the Obsidian vault root.
+
+    Prevents directory traversal attacks, absolute paths, and URL-encoding bypasses.
+
+    Args:
+        path: Path string relative to vault root.
+        is_dir: True if the path represents a directory (allows empty string for vault root).
+
+    Returns:
+        The normalized relative path without leading/trailing slashes.
+
+    Raises:
+        ValueError: If path is invalid, absolute, attempts directory traversal,
+                    or resolves outside the vault root.
+    """
+    if not isinstance(path, str):
+        raise ValueError(f"Vault path must be a string, got {type(path).__name__}")
+
+    cleaned = path.strip()
+    if not cleaned or (is_dir and cleaned in (".", "/")):
+        if is_dir:
+            return ""
+        raise ValueError("Filepath cannot be empty")
+
+    # Multi-pass URL decoding to defeat nested/double URL encoding (e.g. %252e%252e).
+    # The cap is a fail-closed guard: if the value is still changing after the
+    # last pass, deeper encoding remains and downstream stages could decode it
+    # into something we did not validate, so reject it.
+    decoded = cleaned
+    for _ in range(5):
+        try:
+            next_decoded = urllib.parse.unquote(decoded, errors="strict")
+        except UnicodeDecodeError:
+            # Invalid UTF-8 percent-escapes (e.g. overlong sequences like
+            # %c0%af that some decoders normalize to '/' or '.') must never
+            # reach the server, where they could be interpreted as separators.
+            raise ValueError(f"Path contains invalid UTF-8 percent-encoding: {path!r}") from None
+        if next_decoded == decoded:
+            break
+        decoded = next_decoded
+    else:
+        try:
+            if urllib.parse.unquote(decoded, errors="strict") != decoded:
+                raise ValueError(f"Path has excessively nested URL encoding: {path!r}")
+        except UnicodeDecodeError:
+            raise ValueError(f"Path contains invalid UTF-8 percent-encoding: {path!r}") from None
+
+    # Reject null bytes (raw or previously URL-encoded)
+    if "\x00" in decoded:
+        raise ValueError(f"Path contains null bytes: {path!r}")
+
+    # Normalize Windows backslashes to forward slashes
+    normalized_separators = decoded.replace("\\", "/")
+
+    # Reject Windows drive letters (e.g., C:, D:)
+    if re.match(r"^[a-zA-Z]:", normalized_separators):
+        raise ValueError(f"Absolute Windows paths are not allowed: {path!r}")
+
+    # Reject absolute paths (starting with /)
+    if normalized_separators.startswith("/"):
+        raise ValueError(f"Absolute paths are not allowed: {path!r}")
+
+    # Check for path traversal in segments
+    segments = normalized_separators.split("/")
+    for segment in segments:
+        if segment == "..":
+            raise ValueError(f"Path traversal ('..') is not allowed: {path!r}")
+
+    # Normalization check using posixpath.normpath
+    norm = posixpath.normpath(normalized_separators)
+    if norm == ".." or norm.startswith("../") or "/../" in norm or norm.startswith("/"):
+        raise ValueError(f"Path resolves outside vault root: {path!r}")
+
+    if norm == ".":
+        if is_dir:
+            return ""
+        raise ValueError("Filepath cannot be empty")
+
+    return norm
+
 
 class Obsidian():
     def __init__(
@@ -27,6 +111,13 @@ class Obsidian():
 
     def get_base_url(self) -> str:
         return f'{self.protocol}://{self.host}:{self.port}'
+
+    def _vault_url(self, path: str, is_dir: bool = False) -> str:
+        clean_path = validate_vault_path(path, is_dir=is_dir)
+        quoted = urllib.parse.quote(clean_path, safe="/")
+        if is_dir:
+            return f"{self.get_base_url()}/vault/{quoted}/" if quoted else f"{self.get_base_url()}/vault/"
+        return f"{self.get_base_url()}/vault/{quoted}"
     
     def _get_headers(self) -> dict:
         headers = {
@@ -65,7 +156,7 @@ class Obsidian():
 
         
     def list_files_in_dir(self, dirpath: str) -> Any:
-        url = f"{self.get_base_url()}/vault/{dirpath}/"
+        url = self._vault_url(dirpath, is_dir=True)
         
         def call_fn():
             response = requests.get(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
@@ -76,7 +167,7 @@ class Obsidian():
         return self._safe_call(call_fn)
 
     def get_file_contents(self, filepath: str) -> Any:
-        url = f"{self.get_base_url()}/vault/{filepath}"
+        url = self._vault_url(filepath, is_dir=False)
     
         def call_fn():
             response = requests.get(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
@@ -122,7 +213,7 @@ class Obsidian():
         return self._safe_call(call_fn)
     
     def append_content(self, filepath: str, content: str) -> Any:
-        url = f"{self.get_base_url()}/vault/{filepath}"
+        url = self._vault_url(filepath, is_dir=False)
 
         def call_fn():
             response = requests.post(
@@ -165,7 +256,7 @@ class Obsidian():
             raise
 
     def _patch_content_raw(self, filepath: str, operation: str, target_type: str, target: str, content: str) -> Any:
-        url = f"{self.get_base_url()}/vault/{filepath}"
+        url = self._vault_url(filepath, is_dir=False)
 
         # NOTE: The Local REST API rejects 'text/markdown; charset=utf-8' on
         # PATCH (error 40012) — its PATCH parser only accepts the plain
@@ -186,7 +277,7 @@ class Obsidian():
         return self._safe_call(call_fn)
 
     def put_content(self, filepath: str, content: str) -> Any:
-        url = f"{self.get_base_url()}/vault/{filepath}"
+        url = self._vault_url(filepath, is_dir=False)
 
         def call_fn():
             response = requests.put(
@@ -210,7 +301,7 @@ class Obsidian():
         Returns:
             None on success
         """
-        url = f"{self.get_base_url()}/vault/{filepath}"
+        url = self._vault_url(filepath, is_dir=False)
         
         def call_fn():
             response = requests.delete(url, headers=self._get_headers(), verify=self.verify_ssl, timeout=self.timeout)
@@ -253,13 +344,17 @@ class Obsidian():
         """
         tag_query: dict = {"in": [tag, {"var": "tags"}]}
         if dirpath:
-            prefix = dirpath.rstrip("/") + "/"
-            query: dict = {
-                "and": [
-                    tag_query,
-                    {"glob": [f"{prefix}*", {"var": "path"}]},
-                ]
-            }
+            clean_dir = validate_vault_path(dirpath, is_dir=True)
+            if clean_dir:
+                prefix = clean_dir.rstrip("/") + "/"
+                query: dict = {
+                    "and": [
+                        tag_query,
+                        {"glob": [f"{prefix}*", {"var": "path"}]},
+                    ]
+                }
+            else:
+                query = tag_query
         else:
             query = tag_query
         results = self.search_json(query)
@@ -273,7 +368,7 @@ class Obsidian():
         notes without frontmatter; never raises for missing frontmatter
         (only for missing files or transport errors).
         """
-        url = f"{self.get_base_url()}/vault/{filepath}"
+        url = self._vault_url(filepath, is_dir=False)
         headers = self._get_headers() | {
             'Accept': 'application/vnd.olrapi.note+json'
         }
