@@ -40,6 +40,20 @@ def test_patch_content_sends_utf8_bytes_with_plain_content_type():
         assert kwargs["headers"]["Content-Type"] == "text/markdown"
 
 
+def test_patch_content_sends_markdown_patch_version_1_header():
+    """The Local REST API now supports two PATCH formats (2.0 JSON-instruction
+    body vs. this client's deprecated 1.x Target-Type/Target header-driven form)
+    and rejects header-driven requests as ambiguous unless they explicitly opt
+    into the 1.x format with 'Markdown-Patch-Version: 1'. Confirmed 260926
+    against a current Local REST API install — every patch_content call failed
+    outright without this header."""
+    api = _make_obsidian()
+    with patch("mcp_obsidian.obsidian.requests.patch", return_value=_ok_response()) as mock_patch:
+        api.patch_content("f.md", "append", "heading", "A::B", SAMPLE)
+        kwargs = mock_patch.call_args.kwargs
+        assert kwargs["headers"]["Markdown-Patch-Version"] == "1"
+
+
 def test_put_content_sends_utf8_bytes_and_charset():
     api = _make_obsidian()
     with patch("mcp_obsidian.obsidian.requests.put", return_value=_ok_response()) as mock_put:

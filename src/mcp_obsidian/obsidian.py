@@ -175,7 +175,14 @@ class Obsidian():
             'Content-Type': 'text/markdown',
             'Operation': operation,
             'Target-Type': target_type,
-            'Target': urllib.parse.quote(target)
+            'Target': urllib.parse.quote(target),
+            # The Local REST API now supports two PATCH formats (2.0 JSON-instruction
+            # body, and this client's deprecated 1.x Target-Type/Target header-driven
+            # form) and rejects header-driven requests with "ambiguous... requires an
+            # explicit Markdown-Patch-Version header" unless this is sent. Confirmed
+            # 260926 against a current Local REST API install — omitting it fails
+            # every patch_content call outright.
+            'Markdown-Patch-Version': '1'
         }
 
         def call_fn():
