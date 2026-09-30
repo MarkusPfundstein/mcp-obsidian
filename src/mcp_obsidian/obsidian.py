@@ -1,4 +1,5 @@
 import re
+import json
 import requests
 import urllib.parse
 import os
@@ -171,8 +172,20 @@ class Obsidian():
         # PATCH (error 40012) — its PATCH parser only accepts the plain
         # 'text/markdown' form. We still send the body as utf-8 bytes so the
         # encoding is unambiguous on the wire.
+        # Frontmatter values are typed: the plugin stores a text/markdown
+        # body as a raw string, so JSON-parseable content (lists, objects,
+        # numbers, bools) must be sent as application/json to keep its type.
+        content_type = 'text/markdown'
+        if target_type == 'frontmatter':
+            try:
+                json.loads(content)
+                content_type = 'application/json'
+            except ValueError:
+                pass
+
         headers = self._get_headers() | {
-            'Content-Type': 'text/markdown',
+            'Content-Type': content_type,
+            'Markdown-Patch-Version': '1',
             'Operation': operation,
             'Target-Type': target_type,
             'Target': urllib.parse.quote(target)
