@@ -1,0 +1,15 @@
+# mcp-obsidian
+
+> An MCP server that lets AI assistants interact with an Obsidian vault through the Local REST API community plugin, offering tools to list, read, search, edit, and delete notes.
+
+Written in Python (>= 3.11) using the mcp SDK; run via uv/uvx or Docker, configured with an Obsidian REST API key in a server config or .env file. Tools include list_files_in_vault, get_file_contents, search, patch_content, append_content, and delete_file. Requires the Obsidian Local REST API plugin; debug with the MCP Inspector.
+
+## Docs
+
+- [mcp-obsidian README](https://raw.githubusercontent.com/MarkusPfundstein/mcp-obsidian/main/README.md): MCP server tools for interacting with Obsidian via the Local REST API plugin, with example prompts and requirements.
+- [Components](https://github.com/MarkusPfundstein/mcp-obsidian/blob/main/README.md#components): Server tools like list_files_in_vault, search, patch_content, plus example prompts for Claude.
+- [Requirements](https://github.com/MarkusPfundstein/mcp-obsidian/blob/main/README.md#requirements): Python >= 3.11 and mcp SDK version constraints, including the =2.0 import crash.
+- [Configuration](https://github.com/MarkusPfundstein/mcp-obsidian/blob/main/README.md#configuration): Setting the Obsidian REST API key via server config or a .env file, with defaults for port and host.
+- [Quickstart](https://github.com/MarkusPfundstein/mcp-obsidian/blob/main/README.md#quickstart): Installing the Obsidian REST API plugin and configuring Claude Desktop on MacOS and Windows.
+- [Docker](https://github.com/MarkusPfundstein/mcp-obsidian/blob/main/README.md#docker): Running the server in Docker: .env setup, building the image, and using docker compose run with stdin attached.
+- [Development](https://github.com/MarkusPfundstein/mcp-obsidian/blob/main/README.md#development): Building the package for distribution, debugging with the MCP Inspector, and watching server logs.
